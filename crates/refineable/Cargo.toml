@@ -1,0 +1,26 @@
+[package]
+name = "gpui-pre-refineable"
+version = "0.3.99"
+edition = { workspace = true }
+publish = true
+license = "Apache-2.0"
+description = "A macro for creating 'refinement' types that can be used to partially initialize or mutate a complex struct (gpui-pre snapshot of zed@cae0121)"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.gpui-pre]
+zed-crate = "refineable"
+zed-version = "0.1.0"
+zed-rev = "cae01216cbc4f5d56d9d62d78adb02b6f9fe13fa"
+
+[lib]
+path = "src/refineable.rs"
+doctest = false
+name = "refineable"
+
+[features]
+
+[dependencies]
+derive_refineable = { workspace = true }
+
+[lints]
+workspace = true

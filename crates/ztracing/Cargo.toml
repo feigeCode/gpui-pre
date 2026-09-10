@@ -1,0 +1,39 @@
+[package]
+name = "gpui-pre-ztracing"
+version = "0.3.99"
+edition = { workspace = true }
+publish = true
+license = "Apache-2.0"
+description = "Zed's `ztracing` crate (gpui-pre snapshot of zed@cae0121)"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.gpui-pre]
+zed-crate = "ztracing"
+zed-version = "0.1.0"
+zed-rev = "cae01216cbc4f5d56d9d62d78adb02b6f9fe13fa"
+
+[lib]
+name = "ztracing"
+
+[features]
+tracy = ["tracing-tracy", "tracy-client"]
+web = ["dep:async-channel", "dep:js-sys", "dep:wasm-bindgen", "dep:web-sys"]
+
+[dependencies]
+zlog = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = "0.3.22"
+ztracing_macro = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tracing-tracy = { version = "0.11.4", optional = true, features = ["enable", "ondemand"] }
+tracy-client = { version = "0.18.2", optional = true, features = ["enable", "ondemand"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+async-channel = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { version = "0.3", features = ["console", "Performance"], optional = true }
+
+[lints]
+workspace = true

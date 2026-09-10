@@ -1,0 +1,27 @@
+[package]
+name = "gpui-pre-shared-string"
+version = "0.3.99"
+publish = true
+edition = { workspace = true }
+license = "Apache-2.0"
+description = "Zed's `gpui_shared_string` crate (gpui-pre snapshot of zed@cae0121)"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.gpui-pre]
+zed-crate = "gpui_shared_string"
+zed-version = "0.1.0"
+zed-rev = "cae01216cbc4f5d56d9d62d78adb02b6f9fe13fa"
+
+[lib]
+path = "gpui_shared_string.rs"
+name = "gpui_shared_string"
+
+[features]
+
+[dependencies]
+schemars = { workspace = true }
+serde = { workspace = true }
+smol_str = "0.3.6"
+
+[lints]
+workspace = true

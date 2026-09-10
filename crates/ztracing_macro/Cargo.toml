@@ -1,0 +1,21 @@
+[package]
+name = "gpui-pre-ztracing-macro"
+version = "0.3.99"
+edition = { workspace = true }
+publish = true
+license = "Apache-2.0"
+description = "Zed's `ztracing_macro` crate (gpui-pre snapshot of zed@cae0121)"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.gpui-pre]
+zed-crate = "ztracing_macro"
+zed-version = "0.1.0"
+zed-rev = "cae01216cbc4f5d56d9d62d78adb02b6f9fe13fa"
+
+[lib]
+proc-macro = true
+name = "ztracing_macro"
+
+[features]
+
+[dependencies]

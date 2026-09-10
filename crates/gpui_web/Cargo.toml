@@ -1,0 +1,96 @@
+[package]
+name = "gpui-pre-web"
+version = "0.3.99"
+publish = true
+edition = { workspace = true }
+license = "Apache-2.0"
+autoexamples = false
+description = "Zed's `gpui_web` crate (gpui-pre snapshot of zed@cae0121)"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.cargo-shear]
+ignored = ["scheduler"]
+
+[package.metadata.gpui-pre]
+zed-crate = "gpui_web"
+zed-version = "0.1.0"
+zed-rev = "cae01216cbc4f5d56d9d62d78adb02b6f9fe13fa"
+
+[lib]
+path = "src/gpui_web.rs"
+name = "gpui_web"
+
+[features]
+default = ["multithreaded"]
+multithreaded = ["dep:wasm_thread", "scheduler/wasm-threads"]
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+gpui = { workspace = true }
+scheduler = { workspace = true }
+parking_lot = { workspace = true, features = ["nightly"] }
+gpui_wgpu = { workspace = true }
+http_client = { workspace = true }
+anyhow = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
+uuid = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-time = { workspace = true }
+console_error_panic_hook = { workspace = true }
+js-sys = { workspace = true }
+raw-window-handle = { workspace = true }
+wasm_thread = { git = "https://github.com/zed-industries/wasm_thread", rev = "0cf96c7708dfb97ccf3da50347e25edcf75d6937", version = "0.3", features = ["es_modules"], optional = true }
+web-sys = { version = "0.3", features = [
+    "console",
+    "Blob",
+    "Clipboard",
+    "ClipboardEvent",
+    "ClipboardItem",
+    "CompositionEvent",
+    "CssStyleDeclaration",
+    "DataTransfer",
+    "DataTransferItem",
+    "DataTransferItemList",
+    "Document",
+    "DomRect",
+    "DragEvent",
+    "Element",
+    "EventTarget",
+    "File",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "IdleDeadline",
+    "IdleRequestOptions",
+    "InputEvent",
+    "KeyboardEvent",
+    "Location",
+    "MediaQueryList",
+    "MediaQueryListEvent",
+    "MouseEvent",
+    "Navigator",
+    "PointerEvent",
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "ReadableStreamReadResult",
+    "ResizeObserver",
+    "ResizeObserverBoxOptions",
+    "ResizeObserverEntry",
+    "ResizeObserverSize",
+    "ResizeObserverOptions",
+    "Screen",
+    "Storage",
+    "VisualViewport",
+    "Headers",
+    "Request",
+    "RequestCredentials",
+    "RequestInit",
+    "RequestRedirect",
+    "Response",
+    "WheelEvent",
+    "Window",
+] }
+
+[lints]
+workspace = true
