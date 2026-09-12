@@ -5,7 +5,7 @@ publish = true
 edition = { workspace = true }
 license = "Apache-2.0"
 autoexamples = false
-description = "Zed's `gpui_web` crate (gpui-pre snapshot of zed@043fe99)"
+description = "Zed's `gpui_web` crate (gpui-pre snapshot of zed@bd2c5bd)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.cargo-shear]
@@ -14,7 +14,7 @@ ignored = ["scheduler"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui_web"
 zed-version = "0.1.0"
-zed-rev = "043fe9923e8a3935e3d084eb159082b26200a592"
+zed-rev = "bd2c5bdb4b3b2496a1c5601d9f60b051ad62d6bb"
 
 [lib]
 path = "src/gpui_web.rs"
@@ -23,6 +23,11 @@ name = "gpui_web"
 [features]
 default = ["multithreaded"]
 multithreaded = ["dep:wasm_thread", "scheduler/wasm-threads"]
+
+[dependencies]
+unicode-properties = "=0.1.3"
+unicode-script = "0.5.7"
+unicode-segmentation = "1.10"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 gpui = { workspace = true }
@@ -40,6 +45,7 @@ web-time = { workspace = true }
 console_error_panic_hook = { workspace = true }
 js-sys = { workspace = true }
 raw-window-handle = { workspace = true }
+smallvec = { workspace = true }
 wasm_thread = { git = "https://github.com/zed-industries/wasm_thread", rev = "0cf96c7708dfb97ccf3da50347e25edcf75d6937", version = "0.3", features = ["es_modules"], optional = true }
 web-sys = { version = "0.3", features = [
     "console",
@@ -64,6 +70,7 @@ web-sys = { version = "0.3", features = [
     "HtmlTextAreaElement",
     "IdleDeadline",
     "IdleRequestOptions",
+    "ImageData",
     "InputEvent",
     "KeyboardEvent",
     "Location",
@@ -71,6 +78,8 @@ web-sys = { version = "0.3", features = [
     "MediaQueryListEvent",
     "MouseEvent",
     "Navigator",
+    "OffscreenCanvas",
+    "OffscreenCanvasRenderingContext2d",
     "PointerEvent",
     "ReadableStream",
     "ReadableStreamDefaultReader",
@@ -82,6 +91,7 @@ web-sys = { version = "0.3", features = [
     "ResizeObserverOptions",
     "Screen",
     "Storage",
+    "TextMetrics",
     "VisualViewport",
     "Headers",
     "Request",

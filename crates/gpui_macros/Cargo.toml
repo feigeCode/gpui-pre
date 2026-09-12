@@ -4,13 +4,13 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Macros used by gpui (gpui-pre snapshot of zed@043fe99)"
+description = "Macros used by gpui (gpui-pre snapshot of zed@bd2c5bd)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_macros"
 zed-version = "0.1.0"
-zed-rev = "043fe9923e8a3935e3d084eb159082b26200a592"
+zed-rev = "bd2c5bdb4b3b2496a1c5601d9f60b051ad62d6bb"
 
 [lib]
 path = "src/gpui_macros.rs"

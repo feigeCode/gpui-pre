@@ -22,8 +22,8 @@ use crate::{
     TextInputConfiguration, TextInputStateChange, TextRenderingMode, TextStyle,
     TextStyleRefinement, ThermalState, TransformationMatrix, Underline, UnderlineStyle,
     WindowAppearance, WindowBackgroundAppearance, WindowBounds, WindowControls, WindowDecorations,
-    WindowOptions, WindowParams, WindowTextSystem, point, prelude::*, px, rems, size,
-    transparent_black,
+    WindowOptions, WindowParams, WindowTextSystem, WindowVisibility, point, prelude::*, px, rems,
+    size, transparent_black,
 };
 
 use crate::gestures::{GestureTuning, RecognizedTouchGesture, TouchGestureRecognizer};
@@ -1196,6 +1196,9 @@ pub struct Window {
     pub(crate) appearance_observers: SubscriberSet<(), AnyObserver>,
     pub(crate) button_layout_observers: SubscriberSet<(), AnyObserver>,
     active: Rc<Cell<bool>>,
+    visibility: WindowVisibility,
+    pub(crate) visibility_observers:
+        SubscriberSet<(), Box<dyn FnMut(WindowVisibility, &mut Window, &mut App) -> bool>>,
     hovered: Rc<Cell<bool>>,
     pub(crate) needs_present: Rc<Cell<bool>>,
     /// Tracks recent input event timestamps to determine if input is arriving at a high rate.
@@ -1512,7 +1515,35 @@ fn dynamic_texture_byte_len(size: Size<DevicePixels>) -> Result<usize> {
 }
 
 fn dynamic_texture_blank(size: Size<DevicePixels>) -> Result<Vec<u8>> {
-    Ok(vec![0; dynamic_texture_byte_len(size)?])
+    let byte_len = dynamic_texture_byte_len(size)?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(byte_len)
+        .map_err(|_| anyhow!("dynamic texture of {byte_len} bytes is too large to allocate"))?;
+    bytes.resize(byte_len, 0);
+    Ok(bytes)
+}
+
+/// Rejects dynamic-texture sizes that the backend cannot allocate before any CPU
+/// buffer is created for them.
+fn validate_dynamic_texture_size(
+    atlas: &dyn PlatformAtlas,
+    size: Size<DevicePixels>,
+) -> Result<()> {
+    dynamic_texture_dimension(size.width.0, "width")?;
+    dynamic_texture_dimension(size.height.0, "height")?;
+    if let Some(max) = atlas.max_texture_size() {
+        if size.width > max.width || size.height > max.height {
+            return Err(anyhow!(
+                "dynamic texture size {}x{} exceeds the supported maximum {}x{}",
+                size.width.0,
+                size.height.0,
+                max.width.0,
+                max.height.0
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_dynamic_texture_update(
@@ -1562,6 +1593,7 @@ fn update_dynamic_texture_atlas(
     bounds: Bounds<DevicePixels>,
     bytes: &[u8],
 ) -> Result<()> {
+    validate_dynamic_texture_size(atlas, texture_size)?;
     let is_full_update = bounds.origin == Point::default() && bounds.size == texture_size;
     let mut inserted = false;
 
@@ -1658,6 +1690,7 @@ impl Window {
         let text_system = Arc::new(WindowTextSystem::new(cx.text_system().clone()));
         let invalidator = WindowInvalidator::new(handle.window_id());
         let active = Rc::new(Cell::new(platform_window.is_active()));
+        let visibility = platform_window.visibility();
         let hovered = Rc::new(Cell::new(platform_window.is_hovered()));
         let needs_present = Rc::new(Cell::new(false));
         let next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>> = Default::default();
@@ -1985,6 +2018,23 @@ impl Window {
                     .log_err();
             }
         }));
+        platform_window.on_visibility_change(Box::new({
+            let mut cx = cx.to_async();
+            move |visibility| {
+                handle
+                    .update(&mut cx, |_, window, cx| {
+                        if window.visibility == visibility {
+                            return;
+                        }
+                        window.visibility = visibility;
+                        window
+                            .visibility_observers
+                            .clone()
+                            .retain(&(), |callback| callback(visibility, window, cx));
+                    })
+                    .log_err();
+            }
+        }));
         platform_window.on_hover_status_change(Box::new({
             let mut cx = cx.to_async();
             move |active| {
@@ -2125,6 +2175,8 @@ impl Window {
             appearance_observers: SubscriberSet::new(),
             button_layout_observers: SubscriberSet::new(),
             active,
+            visibility,
+            visibility_observers: SubscriberSet::new(),
             hovered,
             needs_present,
             input_rate_tracker,
@@ -2216,6 +2268,37 @@ impl Window {
                 break;
             }
         }
+    }
+
+    /// Whether the platform is presenting this window's frames (see
+    /// [`WindowVisibility`]).
+    pub fn visibility(&self) -> WindowVisibility {
+        self.visibility
+    }
+
+    /// Whether frames drawn for this window will be shown.
+    ///
+    /// This is not the window's shown/hidden state: a shown window that is
+    /// fully behind another window, minimized, or on a sleeping display is not
+    /// visible here.
+    pub fn is_visible(&self) -> bool {
+        self.visibility.is_visible()
+    }
+
+    /// Registers a callback to be invoked when the window's visibility changes.
+    pub fn observe_window_visibility(
+        &self,
+        mut callback: impl FnMut(WindowVisibility, &mut Window, &mut App) + 'static,
+    ) -> Subscription {
+        let (subscription, activate) = self.visibility_observers.insert(
+            (),
+            Box::new(move |visibility, window, cx| {
+                callback(visibility, window, cx);
+                true
+            }),
+        );
+        activate();
+        subscription
     }
 
     /// Registers a callback to be invoked when the window appearance changes.
@@ -3373,11 +3456,7 @@ impl Window {
     }
 
     /// Presents the most recently drawn frame if it hasn't been presented yet.
-    ///
-    /// Benchmarks drive drawing synchronously rather than through a platform
-    /// frame-request loop, so they call this after each measured update to
-    /// submit the frame like production presentation would.
-    #[cfg(any(feature = "bench-support", all(test, feature = "profiler")))]
+    #[cfg(all(test, feature = "profiler"))]
     pub fn present_if_needed(&mut self) {
         if self.needs_present.get() {
             self.present();
@@ -4932,7 +5011,16 @@ impl Window {
 
     /// Uploads a BGRA region into a dynamic texture without replacing its stable identity.
     ///
-    /// The update bounds are relative to the top-left corner of the dynamic texture.
+    /// `bounds` is relative to the top-left corner of the dynamic texture and is
+    /// validated against the texture size. `bytes` must be tightly packed BGRA (four
+    /// bytes per pixel, no row padding), `width * height * 4` bytes long, with the
+    /// first byte being blue and the fourth alpha.
+    ///
+    /// The upload is queued and applied by the backend on the next rendered frame,
+    /// so the change is visible after the owning view requests another paint. A full
+    /// texture-sized update supersedes any queued update for the same texture, so a
+    /// producer that keeps pushing whole frames cannot grow backend memory without
+    /// bound.
     pub fn update_dynamic_texture(
         &mut self,
         data: &DynamicTexture,
@@ -4965,6 +5053,7 @@ impl Window {
         }
         .into();
         let size = data.size();
+        validate_dynamic_texture_size(self.sprite_atlas.as_ref(), size)?;
         let tile = self
             .sprite_atlas
             .get_or_insert_with(&key, &mut || {
@@ -7611,6 +7700,52 @@ mod tests {
         WindowOptions, canvas, div, point, px, size,
     };
 
+    /// Visibility transitions reach observers exactly once each, with the new
+    /// state already stored on the window, and never wake the platform for a
+    /// frame: the platform requests one itself when it resumes presenting.
+    #[gpui::test]
+    fn test_window_visibility(cx: &mut TestAppContext) {
+        use crate::WindowVisibility;
+
+        let window = cx.add_window(|_, _| EmptyView);
+        let observed = Rc::new(RefCell::new(Vec::new()));
+        let _subscription = window
+            .update(cx, {
+                let observed = observed.clone();
+                move |_, window, _| {
+                    assert_eq!(window.visibility(), WindowVisibility::Visible);
+                    assert!(window.is_visible());
+                    window.observe_window_visibility(move |visibility, window, _| {
+                        assert_eq!(window.visibility(), visibility);
+                        observed.borrow_mut().push(visibility);
+                    })
+                }
+            })
+            .unwrap();
+        let test_window = cx.test_window(window.into());
+        let frame_wake_count = test_window.frame_wake_count();
+
+        test_window.simulate_visibility_change(WindowVisibility::Hidden);
+        assert_eq!(*observed.borrow(), [WindowVisibility::Hidden]);
+        window
+            .update(cx, |_, window, _| assert!(!window.is_visible()))
+            .unwrap();
+
+        // Platforms may report the same state again; observers only see changes.
+        test_window.simulate_visibility_change(WindowVisibility::Hidden);
+        assert_eq!(observed.borrow().len(), 1);
+
+        test_window.simulate_visibility_change(WindowVisibility::Visible);
+        assert_eq!(
+            *observed.borrow(),
+            [WindowVisibility::Hidden, WindowVisibility::Visible]
+        );
+        window
+            .update(cx, |_, window, _| assert!(window.is_visible()))
+            .unwrap();
+        assert_eq!(test_window.frame_wake_count(), frame_wake_count);
+    }
+
     #[gpui::test]
     fn test_fully_visible_bounds_preserve_layout_viewport(cx: &mut TestAppContext) {
         let window = cx.add_window(|_, _| EmptyView);
@@ -8773,6 +8908,10 @@ mod dynamic_texture_tests {
         fn remove(&self, _key: &AtlasKey) {
             self.0.lock().tile = None;
         }
+
+        fn max_texture_size(&self) -> Option<Size<DevicePixels>> {
+            Some(size(DevicePixels(8), DevicePixels(8)))
+        }
     }
 
     fn test_dynamic_texture_key(id: usize) -> AtlasKey {
@@ -8790,6 +8929,34 @@ mod dynamic_texture_tests {
         );
         assert!(dynamic_texture_byte_len(size(DevicePixels(0), DevicePixels(2))).is_err());
         assert!(dynamic_texture_byte_len(size(DevicePixels(3), DevicePixels(-1))).is_err());
+    }
+
+    #[test]
+    fn dynamic_texture_blank_rejects_unallocatable_size() {
+        // i32::MAX squared times four bytes passes the usize multiplication check
+        // but exceeds Vec's capacity limit; this must return an error, not panic.
+        let oversized = size(DevicePixels(i32::MAX), DevicePixels(i32::MAX));
+        assert!(dynamic_texture_blank(oversized).is_err());
+    }
+
+    #[test]
+    fn update_rejects_size_beyond_backend_limit_before_allocating() {
+        let atlas = RecordingAtlas::default();
+        let oversized = size(DevicePixels(9), DevicePixels(9));
+        let bounds = Bounds::new(Point::default(), oversized);
+        let bytes = vec![0; 9 * 9 * 4];
+
+        assert!(
+            update_dynamic_texture_atlas(
+                &atlas,
+                &test_dynamic_texture_key(2),
+                oversized,
+                bounds,
+                &bytes,
+            )
+            .is_err()
+        );
+        assert!(atlas.0.lock().builds.is_empty());
     }
 
     #[test]
