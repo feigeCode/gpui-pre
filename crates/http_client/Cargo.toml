@@ -4,13 +4,13 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "A HTTP client library for Zed and GPUI (gpui-pre snapshot of zed@bd2c5bd)"
+description = "A HTTP client library for Zed and GPUI (gpui-pre snapshot of zed@aeaf3b4)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "http_client"
 zed-version = "0.1.0"
-zed-rev = "bd2c5bdb4b3b2496a1c5601d9f60b051ad62d6bb"
+zed-rev = "aeaf3b4f20a23cf002f678ef925e6a9a02f00358"
 
 [lib]
 path = "src/http_client.rs"

@@ -3,7 +3,7 @@ name = "gpui-pre"
 version = "0.3.99"
 edition = { workspace = true }
 authors = ["Nathan Sobo <nathan@zed.dev>"]
-description = "Zed's GPU-accelerated UI framework (gpui-pre snapshot of zed@bd2c5bd)"
+description = "Zed's GPU-accelerated UI framework (gpui-pre snapshot of zed@aeaf3b4)"
 repository = "https://github.com/zed-industries/zed"
 publish = true
 license = "Apache-2.0"
@@ -19,7 +19,7 @@ ignored-paths = ["src/_ownership_and_data_flow.rs"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui"
 zed-version = "0.2.2"
-zed-rev = "bd2c5bdb4b3b2496a1c5601d9f60b051ad62d6bb"
+zed-rev = "aeaf3b4f20a23cf002f678ef925e6a9a02f00358"
 
 [lib]
 path = "src/gpui.rs"
