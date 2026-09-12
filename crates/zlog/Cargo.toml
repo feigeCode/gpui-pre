@@ -4,13 +4,13 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `zlog` crate (gpui-pre snapshot of zed@aeaf3b4)"
+description = "Zed's `zlog` crate (gpui-pre snapshot of zed@7ea59c3)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "zlog"
 zed-version = "0.1.0"
-zed-rev = "aeaf3b4f20a23cf002f678ef925e6a9a02f00358"
+zed-rev = "7ea59c309482ad870d3d4bedd27492833e6f497f"
 
 [lib]
 path = "src/zlog.rs"

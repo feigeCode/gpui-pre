@@ -1,4 +1,4 @@
-// Modified for gpui-pre (snapshot of zed@aeaf3b4): this module is added by the script.
+// Modified for gpui-pre (snapshot of zed@7ea59c3): this module is added by the script.
 // Injected by gpui-kit's script/bump-gpui.ts. Keep fixes in that script.
 use proc_macro::{Group, Ident, Literal, Punct, Spacing, TokenStream, TokenTree};
 use proc_macro_crate::{crate_name, FoundCrate};
