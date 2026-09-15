@@ -4,13 +4,13 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Bindings to macos media handling APIs for Zed (gpui-pre snapshot of zed@beeef1b)"
+description = "Bindings to macos media handling APIs for Zed (gpui-pre snapshot of zed@840b0e9)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "media"
 zed-version = "0.1.0"
-zed-rev = "beeef1b22a8d4a236e308af232067b4503f69fcd"
+zed-rev = "840b0e9b5fd8a3932a7e0f3afef9696ef0ec40e3"
 
 [lib]
 path = "src/media.rs"
