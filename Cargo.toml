@@ -63,7 +63,7 @@ accesskit = { version = "0.24.0", features = ["enumn"] }
 accesskit_macos = "0.26.0"
 accesskit_unix = "0.22"
 accesskit_windows = "0.34"
-agent-client-protocol = { version = "=2.1.0", features = ["unstable"] }
+agent-client-protocol = { version = "2.1.0", features = ["unstable"] }
 aho-corasick = "1.1"
 alacritty_terminal = { git = "https://github.com/zed-industries/alacritty", rev = "4c129667ce56611becdc82de6e28218c80e2e88f" }
 any_vec = "0.14"
@@ -118,7 +118,7 @@ circular-buffer = "1.0"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 clap_complete = { version = "4.4" }
 clap_complete_nushell = { version = "4.4" }
-cocoa = "=0.26.0"
+cocoa = "0.26.0"
 console = "0.16"
 console_error_panic_hook = "0.1.7"
 const_format = "0.2"
@@ -250,7 +250,7 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = [
     "block2",
     "objc2-core-foundation",
 ] }
-objc2-foundation = { version = "=0.3.2", default-features = false, features = [
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
     "NSArray",
     "NSAttributedString",
     "NSBundle",
@@ -276,7 +276,7 @@ objc2-foundation = { version = "=0.3.2", default-features = false, features = [
     "objc2-core-foundation",
     "std",
 ] }
-objc2-screen-capture-kit = { version = "=0.3.2", default-features = false, features = ["block2", "objc2-core-graphics", "SCShareableContent", "std"] }
+objc2-screen-capture-kit = { version = "0.3.2", default-features = false, features = ["block2", "objc2-core-graphics", "SCShareableContent", "std"] }
 objc2-user-notifications = "0.3"
 open = "5.0.0"
 ordered-float = "5"
