@@ -5,7 +5,7 @@ publish = true
 edition = { workspace = true }
 license = "Apache-2.0"
 autoexamples = false
-description = "Zed's `gpui_web` crate (gpui-pre snapshot of zed@840b0e9)"
+description = "Zed's `gpui_web` crate (gpui-pre snapshot of zed@fec06ca)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.cargo-shear]
@@ -14,7 +14,7 @@ ignored = ["scheduler"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui_web"
 zed-version = "0.1.0"
-zed-rev = "840b0e9b5fd8a3932a7e0f3afef9696ef0ec40e3"
+zed-rev = "fec06ca3b3f23e35358e69db52fe5427881b8db2"
 
 [lib]
 path = "src/gpui_web.rs"
