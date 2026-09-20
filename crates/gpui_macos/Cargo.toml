@@ -4,16 +4,17 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `gpui_macos` crate (gpui-pre snapshot of zed@fec06ca)"
+description = "Zed's `gpui_macos` crate (gpui-pre snapshot of zed@ed16e53)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_macos"
 zed-version = "0.1.0"
-zed-rev = "fec06ca3b3f23e35358e69db52fe5427881b8db2"
+zed-rev = "ed16e536e7988825a911fac00d013523ef67ef25"
 
 [lib]
 path = "src/gpui_macos.rs"
+doctest = false
 name = "gpui_macos"
 
 [features]
@@ -32,7 +33,6 @@ accesskit = { workspace = true }
 accesskit_macos = { workspace = true }
 anyhow = { workspace = true }
 async-task = { workspace = true }
-block = { workspace = true }
 block2 = { workspace = true }
 cocoa = { workspace = true }
 collections = { workspace = true }
@@ -52,11 +52,11 @@ itertools = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
 mach2 = { workspace = true }
-media = { workspace = true }
-metal = { workspace = true }
 objc = { workspace = true }
 objc2 = { workspace = true }
 objc2-app-kit = { workspace = true }
+objc2-core-graphics = { workspace = true }
+objc2-core-media = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-screen-capture-kit = { workspace = true }
 objc2-user-notifications = { workspace = true }

@@ -3,7 +3,7 @@ name = "gpui-pre"
 version = "0.3.99"
 edition = { workspace = true }
 authors = ["Nathan Sobo <nathan@zed.dev>"]
-description = "Zed's GPU-accelerated UI framework (gpui-pre snapshot of zed@fec06ca)"
+description = "Zed's GPU-accelerated UI framework (gpui-pre snapshot of zed@ed16e53)"
 repository = "https://github.com/zed-industries/zed"
 publish = true
 license = "Apache-2.0"
@@ -13,17 +13,16 @@ keywords = ["desktop", "gui", "immediate"]
 categories = ["gui"]
 
 [package.metadata.cargo-shear]
-ignored = ["bindgen", "font-kit", "getrandom", "objc2", "objc2-metal", "tracing"]
+ignored = ["bindgen", "font-kit", "getrandom", "objc2", "objc2-metal"]
 ignored-paths = ["src/_ownership_and_data_flow.rs"]
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui"
 zed-version = "0.2.2"
-zed-rev = "fec06ca3b3f23e35358e69db52fe5427881b8db2"
+zed-rev = "ed16e536e7988825a911fac00d013523ef67ef25"
 
 [lib]
 path = "src/gpui.rs"
-doctest = false
 name = "gpui"
 
 [features]
@@ -94,7 +93,6 @@ strum = { workspace = true }
 sum_tree = { workspace = true }
 taffy = "0.13.0"
 thiserror = { workspace = true }
-tracing = { workspace = true }
 gpui_util = { workspace = true }
 hdrhistogram = { workspace = true, optional = true }
 waker-fn = "1.2.0"
@@ -106,7 +104,6 @@ url = { workspace = true }
 uuid = { workspace = true }
 web-time = { workspace = true }
 heapless = { workspace = true }
-ztracing = { workspace = true }
 
 [build-dependencies]
 embed-resource = { version = "3.0", optional = true }
@@ -123,6 +120,8 @@ uuid = { workspace = true, features = ["js"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-video = { workspace = true }
+objc2-core-foundation = { workspace = true }
+objc2-core-video = { workspace = true }
 font-kit = { git = "https://github.com/zed-industries/font-kit", rev = "94b0f28166665e8fd2f53ff6d268a14955c82269", package = "zed-font-kit", version = "0.14.1-zed", optional = true }
 log = { workspace = true }
 objc2 = { workspace = true, optional = true }

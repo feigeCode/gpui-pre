@@ -4,22 +4,24 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `gpui_platform` crate (gpui-pre snapshot of zed@fec06ca)"
+description = "Zed's `gpui_platform` crate (gpui-pre snapshot of zed@ed16e53)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_platform"
 zed-version = "0.1.0"
-zed-rev = "fec06ca3b3f23e35358e69db52fe5427881b8db2"
+zed-rev = "ed16e536e7988825a911fac00d013523ef67ef25"
 
 [lib]
 path = "src/gpui_platform.rs"
+doctest = false
 name = "gpui_platform"
 
 [features]
 default = []
 bench-support = ["gpui/bench-support", "gpui_macos/bench-support"]
 font-kit = ["gpui_macos/font-kit"]
+inspector = ["gpui/inspector"]
 test-support = ["gpui/test-support", "gpui_macos/test-support", "gpui_windows/test-support"]
 screen-capture = [
     "gpui/screen-capture",
@@ -50,3 +52,8 @@ console_error_panic_hook = { workspace = true }
 
 [lints]
 workspace = true
+
+[[bench]]
+name = "inspector_render"
+harness = false
+required-features = ["bench-support"]
