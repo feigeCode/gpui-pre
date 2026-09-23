@@ -4,13 +4,13 @@ version = "0.3.99"
 publish = true
 edition = { workspace = true }
 license = "Apache-2.0"
-description = "Zed's `gpui_util` crate (gpui-pre snapshot of zed@13a8868)"
+description = "Zed's `gpui_util` crate (gpui-pre snapshot of zed@ad01cf9)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_util"
 zed-version = "0.1.0"
-zed-rev = "13a8868714e72e5a2b38003c33197fc068e192ae"
+zed-rev = "ad01cf9995803606272bb58f2abe2d27887d87e0"
 
 [lib]
 doctest = false
