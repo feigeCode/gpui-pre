@@ -4,7 +4,7 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "A sum tree data structure, a concurrency-friendly B-tree (gpui-pre snapshot of zed@ad01cf9)"
+description = "A sum tree data structure, a concurrency-friendly B-tree (gpui-pre snapshot of zed@14469e0)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.cargo-shear]
@@ -13,7 +13,7 @@ ignored = ["tracing"]
 [package.metadata.gpui-pre]
 zed-crate = "sum_tree"
 zed-version = "0.1.0"
-zed-rev = "ad01cf9995803606272bb58f2abe2d27887d87e0"
+zed-rev = "14469e0061621291fb283f1956f40c266a634782"
 
 [lib]
 path = "src/sum_tree.rs"
