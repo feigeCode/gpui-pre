@@ -1,4 +1,4 @@
-// Modified for gpui-pre (snapshot of zed@e18877b): the proc-macro entry points resolve gpui through a facade.
+// Modified for gpui-pre (snapshot of zed@fe3e62a): the proc-macro entry points resolve gpui through a facade.
 mod gpui_pre_facade_paths;
 mod bench;
 mod derive_action;

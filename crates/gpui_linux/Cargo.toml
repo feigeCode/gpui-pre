@@ -4,7 +4,7 @@ version = "0.3.99"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `gpui_linux` crate (gpui-pre snapshot of zed@e18877b)"
+description = "Zed's `gpui_linux` crate (gpui-pre snapshot of zed@fe3e62a)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.cargo-shear]
@@ -13,7 +13,7 @@ ignored = ["bitflags", "scap", "x11-clipboard"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui_linux"
 zed-version = "0.1.0"
-zed-rev = "e18877ba8c31817f1e064ff3807448f014c0b492"
+zed-rev = "fe3e62a81ad4c823650cc71efac3143fde76e2aa"
 
 [lib]
 path = "src/gpui_linux.rs"

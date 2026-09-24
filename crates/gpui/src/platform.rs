@@ -1494,6 +1494,17 @@ impl<Backend> AtlasState<Backend> {
         self.tiles_by_key.contains_key(key)
     }
 
+    /// Returns the tile stored for `key`, if any, without inserting.
+    pub fn tile_for(&self, key: &AtlasKey) -> Option<&AtlasTile> {
+        self.tiles_by_key.get(key)
+    }
+
+    /// Stores a tile the backend inserted outside `get_or_insert_with`
+    /// (dedicated dynamic-texture allocations) under `key`.
+    pub fn insert_tile(&mut self, key: AtlasKey, tile: AtlasTile) {
+        self.tiles_by_key.insert(key, tile);
+    }
+
     pub fn clear(&mut self, reset_backend: impl FnOnce(&mut Backend)) {
         self.tiles_by_key.clear();
         reset_backend(&mut self.backend);
@@ -1669,7 +1680,12 @@ pub enum AtlasTextureKind {
     Monochrome = 0,
     Polychrome = 1,
     Subpixel = 2,
+    /// Fork: images get their own texture pages, separate from glyph and
+    /// dynamic-texture polychrome pages, so dropping many images frees whole
+    /// pages instead of fragmenting shared ones.
     Image = 3,
+    /// Fork: images whose tile fits within 256px go to small pages, keeping
+    /// icons from fragmenting the large-image pages.
     ImageSmall = 4,
 }
 
