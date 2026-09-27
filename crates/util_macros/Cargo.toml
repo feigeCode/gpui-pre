@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-util-macros"
-version = "0.3.116"
+version = "0.3.117"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Utility macros for Zed (gpui-pre snapshot of zed@d006bf6)"
+description = "Utility macros for Zed (gpui-pre snapshot of zed@1a00de7)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "util_macros"
 zed-version = "0.1.0"
-zed-rev = "d006bf6c89884f861635f868cffa60c0eaed6743"
+zed-rev = "1a00de7c1d18e74783237fb36225125bc014f80c"
 
 [lib]
 path = "src/util_macros.rs"

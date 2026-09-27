@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-shared-string"
-version = "0.3.116"
+version = "0.3.117"
 publish = true
 edition = { workspace = true }
 license = "Apache-2.0"
-description = "Zed's `gpui_shared_string` crate (gpui-pre snapshot of zed@d006bf6)"
+description = "Zed's `gpui_shared_string` crate (gpui-pre snapshot of zed@1a00de7)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_shared_string"
 zed-version = "0.1.0"
-zed-rev = "d006bf6c89884f861635f868cffa60c0eaed6743"
+zed-rev = "1a00de7c1d18e74783237fb36225125bc014f80c"
 
 [lib]
 path = "gpui_shared_string.rs"

@@ -31,6 +31,7 @@ mod open_type;
 mod text_system;
 
 mod platform;
+mod touch_bar_guard;
 mod window;
 mod window_appearance;
 mod window_teardown;
