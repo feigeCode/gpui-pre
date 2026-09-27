@@ -33,6 +33,7 @@ mod text_system;
 mod platform;
 mod window;
 mod window_appearance;
+mod window_teardown;
 
 use cocoa::{
     base::{id, nil},
