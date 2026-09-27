@@ -1,4 +1,4 @@
-// Modified for gpui-pre (snapshot of zed@1a00de7): the gpui sources it reads are vendored under `vendor/gpui`.
+// Modified for gpui-pre (snapshot of zed@41d65c8): the gpui sources it reads are vendored under `vendor/gpui`.
 #![allow(clippy::disallowed_methods, reason = "build scripts are exempt")]
 
 fn main() {
