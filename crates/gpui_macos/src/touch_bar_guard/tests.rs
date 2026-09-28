@@ -5,6 +5,7 @@
 //! probe_on_the_main_thread.
 
 use std::ffi::c_void;
+use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
 
 use objc::declare::ClassDecl;
@@ -44,6 +45,10 @@ const MUST_BE_COVERED: &[&str] = &[
 const PROBE_GUARD: &str = "guard";
 /// Installs the guard and retracts somebody else's observation twice.
 const PROBE_FORWARD: &str = "forward";
+/// Installs the guard and retracts somebody else's observation from a window twice.
+const PROBE_WINDOW: &str = "window";
+/// Installs the guard with nothing asking for it, and looks whether it stayed out.
+const PROBE_OFF: &str = "off";
 
 /// Runs the probe on the process's main thread.
 ///
@@ -68,6 +73,14 @@ fn probe_on_the_main_thread() {
             Ok(message) => (format!("probe: {message}"), 0),
             Err(message) => (format!("probe: failed: {message}"), 1),
         },
+        Some(PROBE_WINDOW) => match probe_window() {
+            Ok(message) => (format!("probe: {message}"), 0),
+            Err(message) => (format!("probe: failed: {message}"), 1),
+        },
+        Some(PROBE_OFF) => match probe_off() {
+            Ok(message) => (format!("probe: {message}"), 0),
+            Err(message) => (format!("probe: failed: {message}"), 1),
+        },
         _ => ("probe: failed: unknown mode".to_owned(), 1),
     };
     println!("{message}");
@@ -79,20 +92,43 @@ fn probe_on_the_main_thread() {
 fn probe_guard() -> Result<&'static str, String> {
     install();
 
-    let Some(replaced) = REPLACED.get() else {
+    let Some(replaced) = REPLACED.get().cloned() else {
         return Err("the guard replaced nothing".to_owned());
     };
     if replaced.is_empty() {
         return Err("the guard replaced nothing".to_owned());
     }
-    let ours = our_implementation();
-    for (class, original) in replaced {
-        if *original == 0 || *original == ours {
+
+    // A class's replacement forwards to that class's implementation only if it has a slot
+    // of its own: one shared replacement would have to guess the class the retraction
+    // arrived through, and would guess the receiver on every window retraction.
+    if replaced.len() != SLOTS_TAKEN.load(Ordering::Acquire) {
+        return Err(format!(
+            "{} classes were replaced but {} replacements were taken",
+            replaced.len(),
+            SLOTS_TAKEN.load(Ordering::Acquire)
+        ));
+    }
+    for (class, ours) in &replaced {
+        if *ours == 0 || !is_forwarder(*ours) {
             return Err(format!(
-                "the class at {class:#x} was given the guard as its own implementation"
+                "the class at {class:#x} was given an implementation that is not the guard's"
             ));
         }
     }
+    for slot in 0..replaced.len() {
+        if ORIGINALS[slot].load(Ordering::Acquire) == 0 {
+            return Err(format!("slot {slot} has no original to forward to"));
+        }
+    }
+
+    // Installing again must change nothing: the runtime is left with one replacement per
+    // class, and no class ends up with the guard as its own original.
+    install();
+    if REPLACED.get() != Some(&replaced) {
+        return Err("installing twice replaced something again".to_owned());
+    }
+
     // The classes the finder actually observes. Their method may be their own or
     // inherited; either way it has to resolve to the guard.
     for name in MUST_BE_COVERED {
@@ -102,7 +138,7 @@ fn probe_guard() -> Result<&'static str, String> {
         let Some(method) = class.instance_method(Sel::register(REMOVE_OBSERVER)) else {
             return Err(format!("{name} does not respond to {REMOVE_OBSERVER}"));
         };
-        if method.implementation() as usize != ours {
+        if !is_forwarder(method.implementation() as usize) {
             return Err(format!(
                 "{name} still reaches Foundation's {REMOVE_OBSERVER}"
             ));
@@ -118,7 +154,6 @@ fn probe_guard() -> Result<&'static str, String> {
     {
         return Err("NSObject was not replaced, so neither are the views it serves".to_owned());
     }
-
     let observer = finder_observation()?;
     unsafe {
         let view: *mut Object = msg_send![class!(NSView), new];
@@ -142,6 +177,39 @@ fn probe_forward() -> Result<&'static str, String> {
     unsafe { retract_twice(view, observer) };
 
     Err("a retraction that is not the finder's was skipped too".to_owned())
+}
+
+/// Installs the guard and retracts somebody else's observation from a window twice.
+///
+/// `NSWindow` is the one AppKit responder that implements the method itself, and its
+/// implementation is not the end of the chain: it hands the retraction on to
+/// `NSObject`'s — which the guard has also replaced. A guard that finds the original by
+/// the receiver's class, instead of by the class the retraction arrived through, calls
+/// itself through the window's original until the stack runs out.
+fn probe_window() -> Result<&'static str, String> {
+    install();
+
+    let observer: *mut Object = unsafe { msg_send![class!(NSObject), new] };
+    let window: *mut Object = unsafe { msg_send![class!(NSWindow), new] };
+    if window.is_null() {
+        return Err("could not create a window to observe".to_owned());
+    }
+    unsafe { retract_twice(window, observer) };
+
+    Err("a retraction that is not the finder's was skipped too".to_owned())
+}
+
+/// Installs the guard with nothing asking for it, and looks whether it stayed out.
+///
+/// Replacing methods of AppKit's own classes is not a free change — the module
+/// documentation has the two crashes the field has to show for it — so it happens only
+/// when [`GUARD_ENV`] says so.
+fn probe_off() -> Result<&'static str, String> {
+    install();
+    if REPLACED.get().is_some() {
+        return Err("the guard installed itself without being asked".to_owned());
+    }
+    Ok("off: nothing installed")
 }
 
 /// Registers `observer` for `nextResponder` on `object` and retracts it twice.
@@ -251,23 +319,70 @@ fn every_other_retraction_still_throws() {
     clippy::disallowed_methods,
     reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
 )]
-fn installing_is_idempotent_and_keeps_one_original_per_class() {
+fn installing_twice_leaves_the_runtime_alone() {
+    // `install` is called once per process, but must be harmless if it is called again:
+    // the probe checks, in a process of its own, that the second call changed nothing.
     let child = probe(PROBE_GUARD);
     assert!(
         child.output.contains("probe: ok"),
         "the guard probe did not finish:\n{}",
         child.output
     );
+}
 
-    // `install` is called once per process, but must be harmless if it is called again:
-    // the guard must never record itself as what it replaced.
-    install();
-    let replaced = REPLACED
-        .get()
-        .expect("the probe process installed the guard")
-        .clone();
-    install();
-    assert_eq!(REPLACED.get(), Some(&replaced));
+/// A retraction from a window has to reach Foundation as well.
+///
+/// `NSWindow` implements the method itself and hands the retraction on to `NSObject`'s,
+/// which is the one case where one shared replacement would call itself through the
+/// window's original until the stack runs out. The child dies by the exception's abort
+/// (`SIGABRT`), not by the stack overflow's fault (`SIGSEGV`), which is what the first
+/// version of the guard did on a tester's Mac — see the module documentation.
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
+)]
+fn a_window_retraction_does_not_call_the_guard_in_a_circle() {
+    let child = probe(PROBE_WINDOW);
+    assert!(
+        !child.output.contains("was skipped too"),
+        "a retraction that is not the finder's was swallowed:\n{}",
+        child.output
+    );
+    assert_eq!(
+        child.status.signal(),
+        Some(6),
+        // Six is `SIGABRT`: the uncaught exception. A stack overflow arrives as eleven,
+        // `SIGSEGV`, which is the circular call above.
+        "the window's retraction did not reach Foundation: {}\n{}",
+        child.status,
+        child.output
+    );
+}
+
+/// And nothing installs itself unless the environment asks for it.
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
+)]
+fn the_guard_is_off_unless_the_environment_asks_for_it() {
+    // What counts as asking for it, read without setting anything.
+    assert!(guard_requested_by("1"));
+    assert!(guard_requested_by("on"));
+    assert!(guard_requested_by(" TRUE "));
+    assert!(!guard_requested_by(""));
+    assert!(!guard_requested_by("0"));
+    assert!(!guard_requested_by("false"));
+    assert!(!guard_requested_by("off"));
+
+    // And nothing is replaced in a process where it was not asked for.
+    let child = probe_without_guard(PROBE_OFF);
+    assert!(
+        child.output.contains("probe: off: nothing installed"),
+        "the guard did not stay out of the way:\n{}",
+        child.output
+    );
 }
 
 /// The child's status and its combined output.
@@ -276,16 +391,37 @@ struct ProbeResult {
     output: String,
 }
 
-/// Runs the probe in a child of this test binary, which gives it a main thread.
+/// Runs the probe in a child of this test binary, which gives it a main thread, and with
+/// the guard asked for.
 #[allow(
     clippy::disallowed_methods,
     reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
 )]
 fn probe(mode: &str) -> ProbeResult {
-    let child = Command::new(std::env::current_exe().expect("test binary path"))
-        .env(PROBE_ENV, mode)
-        .output()
-        .expect("run the touch bar guard probe");
+    probe_with(mode, Some("1"))
+}
+
+/// Runs the probe with [`GUARD_ENV`] left unset.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
+)]
+fn probe_without_guard(mode: &str) -> ProbeResult {
+    probe_with(mode, None)
+}
+
+/// Runs the probe, with the guard asked for or not, and collects its status and output.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
+)]
+fn probe_with(mode: &str, guard: Option<&str>) -> ProbeResult {
+    let mut command = Command::new(std::env::current_exe().expect("test binary path"));
+    command.env(PROBE_ENV, mode).env_remove(GUARD_ENV);
+    if let Some(value) = guard {
+        command.env(GUARD_ENV, value);
+    }
+    let child = command.output().expect("run the touch bar guard probe");
     let mut output = String::from_utf8_lossy(&child.stdout).into_owned();
     output.push_str(&String::from_utf8_lossy(&child.stderr));
     ProbeResult {
