@@ -47,7 +47,7 @@ const PROBE_GUARD: &str = "guard";
 const PROBE_FORWARD: &str = "forward";
 /// Installs the guard and retracts somebody else's observation from a window twice.
 const PROBE_WINDOW: &str = "window";
-/// Installs the guard with nothing asking for it, and looks whether it stayed out.
+/// Installs the guard with the environment saying off, and looks whether it stayed out.
 const PROBE_OFF: &str = "off";
 
 /// Runs the probe on the process's main thread.
@@ -199,15 +199,15 @@ fn probe_window() -> Result<&'static str, String> {
     Err("a retraction that is not the finder's was skipped too".to_owned())
 }
 
-/// Installs the guard with nothing asking for it, and looks whether it stayed out.
+/// Installs the guard with [`GUARD_ENV`] saying off, and looks whether it stayed out.
 ///
 /// Replacing methods of AppKit's own classes is not a free change — the module
-/// documentation has the two crashes the field has to show for it — so it happens only
-/// when [`GUARD_ENV`] says so.
+/// documentation has the two crashes the field has to show for it — so there is a way to
+/// run without it, and the switch has to keep working.
 fn probe_off() -> Result<&'static str, String> {
     install();
     if REPLACED.get().is_some() {
-        return Err("the guard installed itself without being asked".to_owned());
+        return Err("the guard installed itself with the environment saying off".to_owned());
     }
     Ok("off: nothing installed")
 }
@@ -360,24 +360,37 @@ fn a_window_retraction_does_not_call_the_guard_in_a_circle() {
     );
 }
 
-/// And nothing installs itself unless the environment asks for it.
+/// And it installs itself unless the environment says off.
 #[test]
 #[allow(
     clippy::disallowed_methods,
     reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
 )]
-fn the_guard_is_off_unless_the_environment_asks_for_it() {
-    // What counts as asking for it, read without setting anything.
-    assert!(guard_requested_by("1"));
-    assert!(guard_requested_by("on"));
-    assert!(guard_requested_by(" TRUE "));
-    assert!(!guard_requested_by(""));
-    assert!(!guard_requested_by("0"));
-    assert!(!guard_requested_by("false"));
-    assert!(!guard_requested_by("off"));
+fn the_guard_is_on_unless_the_environment_says_off() {
+    // What counts as off, read without setting anything. An empty value is not off: a
+    // wrapper that meant to pass nothing must not be able to drop the guard.
+    assert!(!guard_disabled_by(""));
+    assert!(!guard_disabled_by("1"));
+    assert!(!guard_disabled_by("on"));
+    assert!(!guard_disabled_by(" TRUE "));
+    assert!(guard_disabled_by("0"));
+    assert!(guard_disabled_by("false"));
+    assert!(guard_disabled_by("off"));
+    assert!(guard_disabled_by(" OFF "));
+    assert!(guard_disabled_by("no"));
 
-    // And nothing is replaced in a process where it was not asked for.
-    let child = probe_without_guard(PROBE_OFF);
+    // And the guard is in place in a process where nothing was set at all — the same
+    // probe that would otherwise fail reports the replacements instead.
+    let child = probe_with(PROBE_GUARD, None);
+    assert_eq!(
+        child.status.code(),
+        Some(0),
+        "the guard did not install itself with nothing set:\n{}",
+        child.output
+    );
+
+    // While a process that says off is left alone.
+    let child = probe_disabled(PROBE_OFF);
     assert!(
         child.output.contains("probe: off: nothing installed"),
         "the guard did not stay out of the way:\n{}",
@@ -401,13 +414,13 @@ fn probe(mode: &str) -> ProbeResult {
     probe_with(mode, Some("1"))
 }
 
-/// Runs the probe with [`GUARD_ENV`] left unset.
+/// Runs the probe with [`GUARD_ENV`] saying off.
 #[allow(
     clippy::disallowed_methods,
     reason = "the probe has to be a separate process to get a main thread, and blocking a test thread costs nothing"
 )]
-fn probe_without_guard(mode: &str) -> ProbeResult {
-    probe_with(mode, None)
+fn probe_disabled(mode: &str) -> ProbeResult {
+    probe_with(mode, Some("0"))
 }
 
 /// Runs the probe, with the guard asked for or not, and collects its status and output.

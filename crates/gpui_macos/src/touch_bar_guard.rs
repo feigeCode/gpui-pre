@@ -62,15 +62,23 @@
 //! (`navop-2026-09-28-083919.ips`). The replacement is per class, the slot it forwards to is
 //! per class, and the forward target cannot be ambiguous.
 //!
-//! The guard is off unless `GPUI_MACOS_TOUCHBAR_GUARD` is set to something other than
-//! `0`/`false`/`off`. Replacing methods of AppKit's own classes is not a change that can be
-//! called harmless, and the field has two crashes to show for this one: the stack overflow
-//! above, and a `KERN_INVALID_ADDRESS` inside Foundation's KVO bookkeeping during
+//! The guard installs itself unless `GPUI_MACOS_TOUCHBAR_GUARD` says otherwise (`0`, `false`,
+//! `off` or `no`). It is on by default because the exception it prevents is the one the field
+//! keeps hitting: once Navop stopped destroying popup windows, the traffic light and an RDP
+//! session going full screen stopped crashing, but clicking a dialog's OK or Cancel still died
+//! in the finder's retraction (`navop-2026-09-28-123639.ips`, build
+//! `0.19.2-touchbar-hide-only-noguard`) — the same `NSException` out of
+//! `-[NSObject _removeObserver:forProperty:]` that `-[NSApplication _crashOnException:]` turns
+//! into a `SIGILL`, and the observation being retracted there belongs to a view that was never
+//! destroyed, so keeping windows alive does not remove the retraction this module has to stop.
+//!
+//! Replacing methods of AppKit's own classes is not a change that can be called harmless, and
+//! two crashes are known to have come from this module instead of from the exception: the stack
+//! overflow above, and a `KERN_INVALID_ADDRESS` inside Foundation's KVO bookkeeping during
 //! `-[NSApplication terminate:]` (`navop-2026-09-27-165228.ips`), which skipping the finder's
 //! retractions may well cause — it leaves the finder's observations registered on objects the
-//! finder has already dropped its side of. Keeping every window alive, which is what Navop
-//! ships instead, removes the retraction-on-a-dying-view this module was written for, so the
-//! guard waits behind the environment variable until a report needs it again.
+//! finder has already dropped its side of. That one is not explained yet, which is why the
+//! variable is kept: set it to `0` to run without the guard and tell the two apart.
 //!
 //! The observed object is AppKit's own `NSView`, `NSWindow` or field editor, so there is no
 //! class of ours to override: the replacements go on the classes [`observed_classes`]
@@ -93,7 +101,7 @@ use objc::{msg_send, sel, sel_impl};
 /// and friends) is still caught.
 const FINDER_OBSERVER: &str = "_NSTouchBarFinder";
 
-/// Set to something other than `0`, `false` or `off` to install the guard.
+/// Set to `0`, `false`, `off` or `no` to keep the guard out; it installs itself otherwise.
 const GUARD_ENV: &str = "GPUI_MACOS_TOUCHBAR_GUARD";
 
 /// The number of classes the guard can replace the method on at once.
@@ -218,7 +226,7 @@ unsafe extern "C" {
 
 /// Replaces `removeObserver:forKeyPath:context:` on [`observed_classes`], once per process.
 ///
-/// Does nothing unless [`GUARD_ENV`] asks for it; see the module documentation for why.
+/// Installs itself unless [`GUARD_ENV`] turns it off; see the module documentation for why.
 ///
 /// Call on the main thread, before the first window exists.
 pub(crate) fn install() {
@@ -227,21 +235,25 @@ pub(crate) fn install() {
     }
 }
 
-/// Whether the environment asks for the guard.
+/// Whether the guard is on, which is the default.
+///
+/// An unset variable and an empty one both mean "on": an empty value comes from a wrapper
+/// that meant to pass nothing, and silently losing the guard that way is exactly the failure
+/// this default exists to avoid.
 fn guard_requested() -> bool {
-    std::env::var(GUARD_ENV).is_ok_and(|value| guard_requested_by(&value))
+    std::env::var(GUARD_ENV).map_or(true, |value| !guard_disabled_by(&value))
 }
 
-/// Whether one value of [`GUARD_ENV`] asks for the guard.
+/// Whether one value of [`GUARD_ENV`] turns the guard off.
 ///
-/// Total, and separated from the environment so that what counts as "on" can be read and
+/// Total, and separated from the environment so that what counts as "off" can be read and
 /// tested without setting anything.
-fn guard_requested_by(value: &str) -> bool {
+fn guard_disabled_by(value: &str) -> bool {
     let value = value.trim();
-    !(value.is_empty()
-        || value.eq_ignore_ascii_case("0")
+    value.eq_ignore_ascii_case("0")
         || value.eq_ignore_ascii_case("false")
-        || value.eq_ignore_ascii_case("off"))
+        || value.eq_ignore_ascii_case("off")
+        || value.eq_ignore_ascii_case("no")
 }
 
 /// The body of [`install`], run once per process.

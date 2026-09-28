@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-http-client-tls"
-version = "0.3.119"
+version = "0.3.120"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `http_client_tls` crate (gpui-pre snapshot of zed@b73d4c2)"
+description = "Zed's `http_client_tls` crate (gpui-pre snapshot of zed@7485783)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "http_client_tls"
 zed-version = "0.1.0"
-zed-rev = "b73d4c2b257b6a8cf2440fe1f5314aff6e73f3e3"
+zed-rev = "7485783f8027adba8795bcc2341bff7158791b3d"
 
 [lib]
 path = "src/http_client_tls.rs"
