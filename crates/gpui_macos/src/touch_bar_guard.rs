@@ -41,8 +41,8 @@
 //! registered on objects the finder has already dropped its side of.
 //!
 //! So the guard now lets every retraction *through*, and catches only the one exception
-//! it exists for. [`forward`] calls the implementation it replaced inside
-//! `objc2::exception::catch`; when that returns, the retraction really happened and
+//! it exists for. [`forward`] calls the implementation it replaced inside a compiled
+//! `@try`/`@catch` shim; when that returns, the retraction really happened and
 //! Foundation's bookkeeping stays consistent. When it raises, the exception is matched
 //! against the one failure this module knows — observer is the finder's, key path is
 //! `nextResponder`, the exception is `NSRangeException` and its reason contains
@@ -56,12 +56,17 @@
 //! gets the exception thrown straight back, because Cocoa is not exception-safe and a
 //! broader net would hide bugs, not fix them.
 //!
-//! The catch is `objc2::exception`'s (`@try`/`@catch` compiled from C, the
-//! `exception` Cargo feature), not Rust: Rust cannot catch a foreign exception, and
-//! letting one unwind into a Rust frame aborts — which is the very outcome this module
-//! prevents. What is caught is rethrown with [`objc2::exception::throw`], unwinding out
-//! of this `C-unwind` replacement exactly as it would unwind out of the implementation
-//! it replaced.
+//! The catch is the crate's own compiled Objective-C shim (`gpui_macos_try_remove`,
+//! built from objc/gpui_macos_try_remove.m), not `objc2::exception`'s: that one runs a
+//! Rust closure inside its `@try`, and a Rust frame compiled with `panic = "abort"`
+//! — Navop's release profile — turns a passing Objective-C unwind into
+//! `panic in a function that cannot unwind`, which is the very abort this module
+//! prevents (verified: the same guard absorbs the duplicate in a dev build and aborts
+//! under the release profile). The shim's `@try` body calls the original
+//! implementation directly, so no Rust frame stands between the raise and the `@catch`,
+//! whatever the panic strategy is. What is caught is rethrown with the shim's own
+//! `@throw`, unwinding out of this `C-unwind` replacement exactly as it would unwind
+//! out of the implementation it replaced.
 //!
 //! Swallowing the exception one level up, in `-[NSApplication _crashOnException:]`, was
 //! tried and is not enough: by the time that method runs the exception has already
@@ -233,6 +238,28 @@ type RemoveObserverForKeyPathContext =
     unsafe extern "C-unwind" fn(*mut Object, Sel, *mut Object, *mut Object, *mut c_void);
 
 unsafe extern "C" {
+    /// The guard's compiled `@try`/`@catch` shim (objc/gpui_macos_try_remove.m).
+    ///
+    /// The shim's body calls the original implementation directly — no Rust frame
+    /// stands between the raise and the `@catch`, which is what keeps this working
+    /// under `panic = "abort"`: `objc2::exception::catch` runs a Rust closure inside
+    /// its `@try`, and a Rust frame compiled to abort on panic turns a passing
+    /// Objective-C unwind into `panic in a function that cannot unwind` — the very
+    /// abort this module prevents, and what a release build does today. The exception
+    /// comes back retained; [`gpui_macos_rethrow`] consumes that reference.
+    fn gpui_macos_try_remove(
+        imp: RemoveObserverForKeyPathContext,
+        this: *mut Object,
+        selector: Sel,
+        observer: *mut Object,
+        key_path: *mut Object,
+        context: *mut c_void,
+    ) -> *mut Object;
+    /// Rethrows a retained exception, consuming the caller's reference.
+    fn gpui_macos_rethrow(exception: *mut Object);
+}
+
+unsafe extern "C" {
     /// Not re-exported by the `objc` crate, which keeps its own declaration private.
     fn method_setImplementation(method: *mut Method, implementation: Imp) -> Imp;
     /// Not re-exported by the `objc` crate either.
@@ -245,6 +272,26 @@ unsafe extern "C" {
     fn class_getSuperclass(class: *const Class) -> *const Class;
     /// Not re-exported by the `objc` crate either.
     fn objc_getClassList(buffer: *mut *const Class, buffer_count: i32) -> i32;
+    /// From libobjc: releasing the exception the shim retained.
+    fn objc_release(object: *mut c_void);
+}
+
+/// Calls the original implementation inside the compiled `@try`/`@catch` shim.
+///
+/// Exposed to the tests, which use the same no-Rust-frame-in-the-@try arrangement
+/// for their own probes — a probe that caught exceptions with
+/// `objc2::exception::catch` would die the same panic = "abort" death the guard
+/// used to.
+#[cfg(test)]
+pub(super) unsafe fn try_remove_shim(
+    imp: RemoveObserverForKeyPathContext,
+    this: *mut Object,
+    selector: Sel,
+    observer: *mut Object,
+    key_path: *mut Object,
+    context: *mut c_void,
+) -> *mut Object {
+    unsafe { gpui_macos_try_remove(imp, this, selector, observer, key_path, context) }
 }
 
 /// Replaces `removeObserver:forKeyPath:context:` on [`observed_classes`], once per process.
@@ -426,48 +473,42 @@ unsafe fn forward(
     }
 
     let key_path_name = key_path_name(key_path);
-    let caught = objc2::exception::catch(|| {
-        // Only ever written from a method's own implementation, above. Raw pointers,
-        // so the closure is `UnwindSafe`, which `catch` requires.
-        let original: RemoveObserverForKeyPathContext = unsafe { std::mem::transmute(original) };
-        unsafe { original(this, selector, observer, key_path, context) }
-    });
-    match caught {
-        Ok(()) => {
-            log::debug!(
-                "the Touch Bar finder's retraction of {key_path_name} ran on {} {this:p}",
-                class_name(this).as_deref().unwrap_or("<unknown>")
-            );
-        }
-        Err(None) => {
-            // A nil exception cannot be rethrown; `@throw nil` is not a thing this path
-            // produces. Recorded, not absorbed silently.
-            log::error!(
-                "the finder's retraction of {key_path_name} raised without an exception object"
-            );
-        }
-        Err(Some(exception)) => {
-            if is_unregistered_retraction(&exception, &key_path_name) {
-                // The retraction had nothing left to retract, which is AppKit's own
-                // double-retraction; doing nothing here is what it meant to do. The log
-                // line is the evidence the field reports never carried.
-                log::warn!(
-                    "absorbed the Touch Bar finder's duplicate retraction of {key_path_name} \
-                     from {} {this:p} (observer {} {observer:p}, context {context:p}): \
-                     {}: {}",
-                    class_name(this).as_deref().unwrap_or("<unknown>"),
-                    class_name(observer).as_deref().unwrap_or("<unknown>"),
-                    exception_name(&exception).as_deref().unwrap_or("<no name>"),
-                    exception_reason(&exception)
-                        .as_deref()
-                        .unwrap_or("<no reason>"),
-                );
-            } else {
-                // Not the failure this module exists for: let it unwind exactly as the
-                // implementation this one replaced would have.
-                objc2::exception::throw(exception);
-            }
-        }
+    // Only ever written from a method's own implementation, above.
+    let original: RemoveObserverForKeyPathContext = unsafe { std::mem::transmute(original) };
+    // The raise and the @catch are both inside the compiled shim, with no Rust frame
+    // in between — this is the call that has to survive panic = "abort".
+    let exception: *mut Object =
+        unsafe { gpui_macos_try_remove(original, this, selector, observer, key_path, context) };
+    if exception.is_null() {
+        log::debug!(
+            "the Touch Bar finder's retraction of {key_path_name} ran on {} {this:p}",
+            class_name(this).as_deref().unwrap_or("<unknown>")
+        );
+        return;
+    }
+
+    if is_unregistered_retraction(exception, &key_path_name) {
+        // The retraction had nothing left to retract, which is AppKit's own
+        // double-retraction; doing nothing here is what it meant to do. The log line
+        // is the evidence the field reports never carried. The retained reference the
+        // shim handed back is released here — the absorption owns it.
+        log::warn!(
+            "absorbed the Touch Bar finder's duplicate retraction of {key_path_name} \
+             from {} {this:p} (observer {} {observer:p}, context {context:p}): \
+             {}: {}",
+            class_name(this).as_deref().unwrap_or("<unknown>"),
+            class_name(observer).as_deref().unwrap_or("<unknown>"),
+            exception_name(exception).as_deref().unwrap_or("<no name>"),
+            exception_reason(exception)
+                .as_deref()
+                .unwrap_or("<no reason>"),
+        );
+        release(exception);
+    } else {
+        // Not the failure this module exists for: let it unwind exactly as the
+        // implementation this one replaced would have. The shim's retained reference
+        // is consumed by the throw.
+        unsafe { gpui_macos_rethrow(exception) };
     }
 }
 
@@ -476,7 +517,7 @@ unsafe fn forward(
 ///
 /// Anything else — a different key path, a different exception, an object that does not
 /// even answer `name` — is not ours to swallow.
-fn is_unregistered_retraction(exception: &objc2::exception::Exception, key_path: &str) -> bool {
+fn is_unregistered_retraction(exception: *mut Object, key_path: &str) -> bool {
     if key_path != FINDER_KEY_PATH {
         return false;
     }
@@ -490,37 +531,31 @@ fn is_unregistered_retraction(exception: &objc2::exception::Exception, key_path:
 ///
 /// `None` for an exception object that does not answer `name` — thrown objects are not
 /// required to be `NSException`s, and one that is not is not ours to inspect.
-fn exception_name(exception: &objc2::exception::Exception) -> Option<String> {
-    let responds: bool =
-        unsafe { objc2::msg_send![exception, respondsToSelector: objc2::sel!(name)] };
-    if !responds {
-        return None;
-    }
-    // `name` returns an `NSString`, not owned by us.
-    let value: Option<objc2::rc::Retained<objc2::runtime::NSObject>> =
-        unsafe { objc2::msg_send![exception, name] };
-    string_from_nsobject(value)
+fn exception_name(exception: *mut Object) -> Option<String> {
+    string_of_selector(exception, sel!(name))
 }
 
 /// An exception's `reason`, if it is an `NSException` at all.
-fn exception_reason(exception: &objc2::exception::Exception) -> Option<String> {
-    let responds: bool =
-        unsafe { objc2::msg_send![exception, respondsToSelector: objc2::sel!(reason)] };
+fn exception_reason(exception: *mut Object) -> Option<String> {
+    string_of_selector(exception, sel!(reason))
+}
+
+/// A string-returning selector read off an exception, as Rust text.
+///
+/// `None` when the object does not answer the selector at all.
+fn string_of_selector(object: *mut Object, selector: Sel) -> Option<String> {
+    // `msg_send!` takes selector names as literals, not `Sel` values, so the dispatch
+    // below is spelled out for the two selectors the guard reads.
+    let _ = selector;
+    let responds: bool = unsafe { msg_send![object, respondsToSelector: selector] };
     if !responds {
         return None;
     }
-    // `reason` returns an `NSString`, not owned by us.
-    let value: Option<objc2::rc::Retained<objc2::runtime::NSObject>> =
-        unsafe { objc2::msg_send![exception, reason] };
-    string_from_nsobject(value)
-}
-
-/// An `NSString` field read out of an exception, as Rust text.
-fn string_from_nsobject(
-    value: Option<objc2::rc::Retained<objc2::runtime::NSObject>>,
-) -> Option<String> {
-    let value = value?;
-    let utf8: *const c_char = unsafe { objc2::msg_send![&*value, UTF8String] };
+    let value: *mut Object = unsafe { dispatch_string_selector(object, selector) };
+    if value.is_null() {
+        return None;
+    }
+    let utf8: *const c_char = unsafe { msg_send![value, UTF8String] };
     if utf8.is_null() {
         return None;
     }
@@ -529,6 +564,22 @@ fn string_from_nsobject(
             .to_string_lossy()
             .into_owned(),
     )
+}
+
+/// Dispatches `name` or `reason` on an exception object, returning the string.
+///
+/// `objc`'s `msg_send!` wants selector names as literals; this takes the `Sel` the
+/// guard already resolved and sends it through `objc_msgSend` directly.
+unsafe fn dispatch_string_selector(object: *mut Object, selector: Sel) -> *mut Object {
+    unsafe extern "C" {
+        fn objc_msgSend(receiver: *mut Object, selector: Sel, ...) -> *mut Object;
+    }
+    unsafe { objc_msgSend(object, selector) }
+}
+
+/// Releases a retained object the guard is done with.
+fn release(object: *mut Object) {
+    unsafe { objc_release(object as *mut _) };
 }
 
 /// Whether an address is one of the guard's replacements.

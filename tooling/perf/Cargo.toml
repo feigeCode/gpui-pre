@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-perf"
-version = "0.3.121"
+version = "0.3.122"
 publish = true
 edition = { workspace = true }
 license = "Apache-2.0"
-description = "A tool for measuring Zed test performance, with too many Clippy lints (gpui-pre snapshot of zed@83e4b04)"
+description = "A tool for measuring Zed test performance, with too many Clippy lints (gpui-pre snapshot of zed@2834166)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "perf"
 zed-version = "0.1.0"
-zed-rev = "83e4b04b605ff63deac1d7e7169374ae8911afc9"
+zed-rev = "283416671d270477b6da12afa66ee3521e54a9c7"
 
 [lib]
 test = false

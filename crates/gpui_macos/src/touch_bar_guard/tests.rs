@@ -7,14 +7,17 @@
 //! a `ctor` before `main`, the mode arriving in [`PROBE_ENV`] picks what it checks — and
 //! the parent asserts on the child's status and output.
 //!
-//! Why the semantic probes prove removal by *retracting again* instead of by counting
-//! notifications: Foundation dispatches `observeValueForKeyPath:` to a dynamically
-//! registered observer class's `NSObject` implementation — not to the method the class
-//! was declared with — so a change notification throws "was received but not handled"
-//! before any Rust counter can run. The duplicate retraction's
-//! "because it is not registered as an observer" is the same evidence from the other
-//! side: it can only throw if the first retraction really removed something that the
-//! registration really put there.
+//! Why the semantic probes prove removal from both sides — counting notifications and
+//! retracting again: the duplicate retraction's "because it is not registered as an
+//! observer" can only throw if the first retraction really removed something that the
+//! registration really put there, and a change notification that no longer arrives
+//! after the retraction is the same fact straight from Foundation's dispatch side.
+//! Both halves are needed: the first guard version skipped the legal retraction and
+//! passed the exception side vacuously — no removal, no duplicate, nothing raised —
+//! while the notification count kept moving. The counter only works on the probe's
+//! main thread, with Foundation past its pre-main state; before `main`, change
+//! notifications go to a dynamically registered class's `NSObject` default, which
+//! throws "was received but not handled".
 
 use std::os::raw::c_void;
 use std::os::unix::process::ExitStatusExt as _;
@@ -27,6 +30,7 @@ use objc::{class, msg_send, sel, sel_impl};
 use super::{
     GUARD_ENV, ORIGINALS, REMOVE_OBSERVER, REPLACED, SLOTS_TAKEN, exception_name, exception_reason,
     guard_disabled_by, install, is_finder_class_name, is_forwarder, is_unregistered_retraction,
+    try_remove_shim,
 };
 
 /// The environment variable that turns this binary into a probe.
@@ -167,53 +171,71 @@ fn probe_guard() -> Result<&'static str, String> {
     Ok("ok")
 }
 
-/// Registers the probe observer on a view, retracts once — the legal retraction, which
-/// must really remove — and proves the removal by retracting again: the duplicate must
-/// raise "not registered" (only an empty registry can), and the guard must absorb it.
+/// Registers the probe observer on a view, checks the change notifies, retracts once
+/// through the guard, checks the observation is **gone** — further changes must not
+/// notify — and proves the same removal from the other side by retracting again: the
+/// duplicate must raise "not registered", which only an empty registry can, and the
+/// guard must absorb it.
 ///
-/// The first guard version failed here without noticing: it skipped the legal retraction
-/// as well, the observation stayed registered, and no duplicate was ever raised to be
-/// absorbed.
+/// Both proofs pin the same defect from opposite sides. The first guard version
+/// skipped the legal retraction as well: the observation stayed registered (the
+/// notification count kept moving), no duplicate was ever raised (the exception side
+/// stayed silent), and every test passed vacuously.
 unsafe fn legal_retraction_then_duplicate(view: *mut Object) -> Result<(), String> {
     let observer = probe_observer();
     let key_path = unsafe { crate::ns_string("nextResponder") };
     let context: *mut c_void = std::ptr::null_mut();
+    let next: *mut Object = unsafe { msg_send![class!(NSResponder), new] };
 
     // The registration, and the legal retraction through the runtime — the replaced
     // method, which is the whole point. The first retraction of a live registration
     // must come back without an exception: a guard that skipped it would leave the
-    // observation registered forever, which is the defect this probe pins.
+    // observation registered forever, which is the defect this probe pins. The shim
+    // catches what escapes, so a broken guard reports instead of killing the probe.
     let view_p = view as usize;
     let observer_p = observer as usize;
     let key_p = key_path as usize;
-    let first = objc2::exception::catch(move || unsafe {
+    let escapee: *mut Object = unsafe {
         let view: *mut Object = std::mem::transmute(view_p);
         let observer: *mut Object = std::mem::transmute(observer_p);
         let key_path: *mut Object = std::mem::transmute(key_p);
-        let _: () = msg_send![
+        try_remove_shim(
+            legal_steps,
             view,
-            addObserver: observer
-            forKeyPath: key_path
-            options: 0usize
-            context: std::ptr::null_mut::<c_void>()
-        ];
-        let _: () = msg_send![
-            view,
-            removeObserver: observer
-            forKeyPath: key_path
-            context: std::ptr::null_mut::<c_void>()
-        ];
-    });
-    match first {
-        Ok(()) => {}
-        Err(Some(exception)) => {
-            return Err(format!(
-                "the legal retraction threw {}: {} — the guard must forward it, not skip it",
-                exception_name(&exception).as_deref().unwrap_or("?"),
-                exception_reason(&exception).as_deref().unwrap_or("?")
-            ));
-        }
-        Err(None) => return Err("the legal retraction threw a foreign exception".to_owned()),
+            sel!(removeObserver:forKeyPath:context:),
+            observer,
+            key_path,
+            std::ptr::null_mut(),
+        )
+    };
+    if !escapee.is_null() {
+        return Err(format!(
+            "the legal retraction threw {}: {} — the guard must forward it, not skip it",
+            exception_name(escapee).as_deref().unwrap_or("?"),
+            exception_reason(escapee).as_deref().unwrap_or("?")
+        ));
+    }
+
+    // The observation is really gone: a change no longer notifies. One notification
+    // was counted for the change below *before* the removal — proof the registration
+    // was live — and the count must not move now that the retraction has run. Without
+    // the `after >= 1` half, a Foundation that never dispatched at all would pass the
+    // silence half vacuously.
+    let after = NOTIFICATIONS.load(std::sync::atomic::Ordering::Acquire);
+    if after < 1 {
+        return Err(
+            "no notification ever arrived: the registration half of the proof is missing \
+             — the silence half below would pass vacuously"
+                .to_owned(),
+        );
+    }
+    unsafe { set_next_responder(view, next) };
+    if NOTIFICATIONS.load(std::sync::atomic::Ordering::Acquire) != after {
+        return Err(
+            "the legal retraction did not remove the observation: it still notifies. \
+             This is exactly the defect the paired-catch guard exists to fix"
+                .to_owned(),
+        );
     }
 
     // The duplicate: nothing is registered now, so Foundation raises the exception the
@@ -268,27 +290,25 @@ unsafe fn contexts_come_off_independently(view: *mut Object) -> Result<(), Strin
     let view_p = view as usize;
     let observer_p = observer as usize;
     let key_p = key_path as usize;
-    let retract_a = objc2::exception::catch(move || unsafe {
+    let escapee: *mut Object = unsafe {
         let view: *mut Object = std::mem::transmute(view_p);
         let observer: *mut Object = std::mem::transmute(observer_p);
         let key_path: *mut Object = std::mem::transmute(key_p);
-        let _: () = msg_send![
+        try_remove_shim(
+            retract_a_step,
             view,
-            removeObserver: observer
-            forKeyPath: key_path
-            context: context_a
-        ];
-    });
-    match retract_a {
-        Ok(()) => {}
-        Err(Some(exception)) => {
-            return Err(format!(
-                "retracting context A raised {}: {} — it took context B off with it",
-                exception_name(&exception).as_deref().unwrap_or("?"),
-                exception_reason(&exception).as_deref().unwrap_or("?")
-            ));
-        }
-        Err(None) => return Err("retracting context A raised a foreign exception".to_owned()),
+            sel!(removeObserver:forKeyPath:context:),
+            observer,
+            key_path,
+            context_a,
+        )
+    };
+    if !escapee.is_null() {
+        return Err(format!(
+            "retracting context A raised {}: {} — it took context B off with it",
+            exception_name(escapee).as_deref().unwrap_or("?"),
+            exception_reason(escapee).as_deref().unwrap_or("?")
+        ));
     }
 
     // Retracting context B still has something to remove — no exception. If A's
@@ -388,10 +408,12 @@ fn probe_off() -> Result<&'static str, String> {
     Ok("off: nothing installed")
 }
 
-/// The probe's stand-in for the finder: the name the guard matches. No
-/// `observeValueForKeyPath:` is declared — Foundation does not dispatch change
-/// notifications to a dynamically registered class's own implementation anyway, and the
-/// probes prove registration and removal through the retraction exceptions instead.
+/// The probe's stand-in for the finder: the name the guard matches. Its
+/// `observeValueForKeyPath:` counts arrivals in [`NOTIFICATIONS`] — on the probe's
+/// main thread, with Foundation past its pre-main state, change notifications do
+/// dispatch to a dynamically registered class's own implementation (pre-main they go
+/// to NSObject's default, which throws; that earlier failure was timing, not the
+/// class).
 ///
 /// AppKit's own class is not instantiated for the semantic probes: its `init` is not
 /// ours to call. The guard only ever looks at the name.
@@ -404,12 +426,50 @@ fn probe_observer() -> *mut Object {
         let Some(superclass) = Class::get("NSObject") else {
             return Class::get("NSObject").expect("NSObject is not registered");
         };
-        let declaration = ClassDecl::new("_NSTouchBarFinderProbeObservation", superclass)
+        let mut declaration = ClassDecl::new("_NSTouchBarFinderProbeObservation", superclass)
             .expect("the probe observation class could not be declared");
+        unsafe {
+            declaration.add_method(
+                sel!(observeValueForKeyPath:ofObject:change:context:),
+                observe_value
+                    as extern "C" fn(
+                        &Object,
+                        Sel,
+                        *mut Object,
+                        *mut Object,
+                        *mut Object,
+                        *mut c_void,
+                    ),
+            );
+        }
         declaration.register()
     });
     let class = *class;
     unsafe { msg_send![class, new] }
+}
+
+/// How many change notifications have arrived at the probe observer.
+static NOTIFICATIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The probe observer's `observeValueForKeyPath:` — the arrival counter. A safe fn:
+/// `objc 0.2`'s `MethodImplementation` is only implemented for plain `extern "C"`
+/// function pointers, and the body is nothing but an atomic increment.
+extern "C" fn observe_value(
+    _receiver: &Object,
+    _command: Sel,
+    _key_path: *mut Object,
+    _object: *mut Object,
+    _change: *mut Object,
+    _context: *mut c_void,
+) {
+    NOTIFICATIONS.fetch_add(1, std::sync::atomic::Ordering::Release);
+}
+
+/// Fires one `nextResponder` change notification on `view`.
+unsafe fn set_next_responder(view: *mut Object, next: *mut Object) {
+    unsafe {
+        let _: () = msg_send![view, setNextResponder: next];
+    }
 }
 
 /// Registers `observer` for `nextResponder` on `object` and retracts it twice.
@@ -443,6 +503,57 @@ unsafe fn retract_twice(object: *mut Object, observer: *mut Object) {
 }
 
 use objc::declare::ClassDecl;
+
+/// The shim's body for [`legal_retraction_then_duplicate`]: register, watch one
+/// change arrive (proof the registration is live), then retract once. Runs inside the
+/// shim's `@try`, so an exception that escapes a broken guard is caught there instead
+/// of killing the probe — the same no-Rust-frame-in-the-@try arrangement the guard
+/// itself relies on.
+unsafe extern "C-unwind" fn legal_steps(
+    view: *mut Object,
+    _selector: Sel,
+    observer: *mut Object,
+    key_path: *mut Object,
+    _context: *mut c_void,
+) {
+    unsafe {
+        let _: () = msg_send![
+            view,
+            addObserver: observer
+            forKeyPath: key_path
+            options: 0usize
+            context: std::ptr::null_mut::<c_void>()
+        ];
+        // One change while the registration is live: the notification count moves.
+        let next: *mut Object = msg_send![class!(NSResponder), new];
+        let _: () = msg_send![view, setNextResponder: next];
+        let _: () = msg_send![
+            view,
+            removeObserver: observer
+            forKeyPath: key_path
+            context: std::ptr::null_mut::<c_void>()
+        ];
+    }
+}
+
+/// The shim's body for [`contexts_come_off_independently`]: retract context A only —
+/// B must stay registered, which is proven by the lack of an exception.
+unsafe extern "C-unwind" fn retract_a_step(
+    view: *mut Object,
+    _selector: Sel,
+    observer: *mut Object,
+    key_path: *mut Object,
+    context: *mut c_void,
+) {
+    unsafe {
+        let _: () = msg_send![
+            view,
+            removeObserver: observer
+            forKeyPath: key_path
+            context: context
+        ];
+    }
+}
 
 /// The reason the guard exists: the finder's own retraction, twice, must not abort —
 /// and the first retraction must really remove the observation.
@@ -580,10 +691,7 @@ fn only_the_finders_own_observations_are_recognised() {
 }
 
 /// An `NSException` built to order, for classifying without throwing.
-fn exception_of(name: &str, reason: &str) -> objc2::rc::Retained<objc2::exception::Exception> {
-    // Built with the `objc` crate's classes, like everything else in this file: the
-    // workspace pulls two `objc2`s and the test targets this crate's 0.6.3 one, which
-    // the `class!` macro of 0.5.2 cannot hand a type from.
+fn exception_of(name: &str, reason: &str) -> *mut Object {
     let exception: *mut Object = unsafe {
         msg_send![
             class!(NSException),
@@ -592,14 +700,7 @@ fn exception_of(name: &str, reason: &str) -> objc2::rc::Retained<objc2::exceptio
             userInfo: std::ptr::null_mut::<Object>()
         ]
     };
-    // A live NSException as the guard sees it: the guard only reads two selectors off
-    // it, so the pointer type it arrived under does not matter. `exceptionWithName:…`
-    // returns an autoreleased object, so it is retained before `Retained` takes it —
-    // owning it without that would over-release it on drop.
-    let exception: *mut Object = unsafe { msg_send![exception, retain] };
-    let retained: Option<objc2::rc::Retained<objc2::exception::Exception>> =
-        unsafe { objc2::rc::Retained::from_raw(exception.cast()) };
-    retained.expect("the exception was not created")
+    exception
 }
 
 /// The classification the absorption depends on: exactly one combination counts.
@@ -609,24 +710,24 @@ fn only_the_unregistered_next_responder_retraction_counts() {
         "NSRangeException",
         "Cannot remove an observer because it is not registered as an observer",
     );
-    assert!(is_unregistered_retraction(&matching, "nextResponder"));
+    assert!(is_unregistered_retraction(matching, "nextResponder"));
 
     // Any other key path: not ours.
-    assert!(!is_unregistered_retraction(&matching, "hidden"));
+    assert!(!is_unregistered_retraction(matching, "hidden"));
 
     // Any other exception name: not ours.
     let other_name = exception_of(
         "NSInvalidArgumentException",
         "Cannot remove an observer because it is not registered as an observer",
     );
-    assert!(!is_unregistered_retraction(&other_name, "nextResponder"));
+    assert!(!is_unregistered_retraction(other_name, "nextResponder"));
 
     // Any other reason: not ours — an object that never was registered, say.
     let other_reason = exception_of(
         "NSRangeException",
         "Cannot remove an observer because it is no longer registered as an observer",
     );
-    assert!(!is_unregistered_retraction(&other_reason, "nextResponder"));
+    assert!(!is_unregistered_retraction(other_reason, "nextResponder"));
 }
 
 /// And it installs itself unless the environment says off.
