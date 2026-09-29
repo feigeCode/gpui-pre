@@ -2242,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -2317,7 +2317,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-apple"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "block2 0.6.2",
@@ -2340,7 +2340,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-collections"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "gpui-pre-util",
  "indexmap",
@@ -2349,7 +2349,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-derive-refineable"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2358,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-http-client"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -2377,7 +2377,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-http-client-tls"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "log",
  "rustls",
@@ -2387,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-linux"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -2432,14 +2432,13 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-macos"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "accesskit",
  "accesskit_macos",
  "anyhow",
  "async-task",
  "block2 0.6.2",
- "cc",
  "cocoa 0.26.0",
  "core-foundation 0.10.0",
  "core-foundation-sys",
@@ -2478,7 +2477,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-macros"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "heck 0.5.0",
  "proc-macro-crate",
@@ -2489,7 +2488,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-perf"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "gpui-pre-collections",
  "serde",
@@ -2498,7 +2497,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-platform"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "console_error_panic_hook",
  "gpui-pre",
@@ -2510,7 +2509,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-refineable"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "gpui-pre-derive-refineable",
 ]
@@ -2567,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-reqwest-client"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2583,7 +2582,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-scheduler"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "async-task",
  "backtrace",
@@ -2598,7 +2597,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-shared-string"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "schemars",
  "serde",
@@ -2607,7 +2606,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-sum-tree"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "gpui-pre-ztracing",
  "heapless",
@@ -2619,7 +2618,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-util"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "log",
@@ -2628,7 +2627,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-util-macros"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "gpui-pre-perf",
  "quote",
@@ -2637,7 +2636,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-web"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "console_error_panic_hook",
@@ -2664,7 +2663,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-wgpu"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -2689,7 +2688,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-windows"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "accesskit",
  "accesskit_windows",
@@ -2717,7 +2716,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-zlog"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2727,7 +2726,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-ztracing"
-version = "0.3.122"
+version = "0.3.123"
 dependencies = [
  "async-channel",
  "gpui-pre-zlog",
@@ -2743,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-pre-ztracing-macro"
-version = "0.3.122"
+version = "0.3.123"
 
 [[package]]
 name = "h2"

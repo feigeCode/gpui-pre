@@ -2,7 +2,7 @@ use crate::{
     BoolExt, MacDisplay, NSRange, NSStringExt, TISCopyCurrentKeyboardInputSource,
     TISGetInputSourceProperty, WindowFrameSource, events::platform_input_from_native,
     kTISPropertyInputSourceIsASCIICapable, kTISPropertyInputSourceType, kTISTypeKeyboardInputMode,
-    ns_string, renderer, window_teardown,
+    ns_string, renderer,
 };
 #[cfg(any(test, feature = "test-support"))]
 use anyhow::Result;
@@ -665,14 +665,7 @@ struct MacWindowState {
     cursor_style: CursorStyle,
     cursor_visible: Arc<AtomicBool>,
     frame_source: Option<WindowFrameSource>,
-    // `None` once the window was retired: the renderer owns the metal layer, its
-    // drawable pool and the renderer-side textures, and none of those may outlive the
-    // GPUI window even though the native one is kept alive (see [`MacWindowState::retire`]
-    // and [`window_teardown`]).
-    renderer: Option<renderer::Renderer>,
-    // Whether the window was retired: closed, kept alive, and stripped of its renderer
-    // and callbacks by [`MacWindowState::retire`].
-    retired: bool,
+    renderer: renderer::Renderer,
     request_frame_callback: Option<Box<dyn FnMut(RequestFrameOptions)>>,
     event_callback: Option<Box<dyn FnMut(PlatformInput) -> gpui::DispatchEventResult>>,
     activate_callback: Option<Box<dyn FnMut(bool)>>,
@@ -720,68 +713,6 @@ struct MacWindowState {
 }
 
 impl MacWindowState {
-    /// Releases everything that must not outlive the GPUI window, in place.
-    ///
-    /// `MacWindow::drop` retires the native window instead of releasing it (see
-    /// [`window_teardown`]), and the native window and its views keep pointing at this
-    /// state, so the state itself has to stay readable. Everything it holds that is
-    /// expensive — the renderer, and with it the metal layer, its drawable pool and the
-    /// renderer's textures — or that would keep a dropped GPUI window's content alive —
-    /// the callbacks, which capture entities and views — is released here instead.
-    ///
-    /// Called once, on the main thread, after the native window was closed, so that
-    /// `close_window` still sees the complete state.
-    fn retire(&mut self) {
-        debug_assert!(!self.retired, "the window was already retired");
-        self.retired = true;
-        // `accesskit_macos::SubclassingAdapter::for_window` strong-retains the window's
-        // content view, and that content view keeps the `GPUIView` it hosts alive.
-        // Together with the `Arc<Mutex<MacWindowState>>` parked in both objects'
-        // `windowState` ivar that forms
-        // `MacWindowState -> adapter -> content view -> GPUIView -> MacWindowState`,
-        // a cycle nothing else breaks. The adapter has to go; its `Drop` is safe here
-        // because the view it detaches from is still alive.
-        drop(self.accesskit_adapter.take());
-        if let Some(renderer) = self.renderer.take() {
-            // A no-op in the current renderer (`metal_renderer::destroy`), kept as its
-            // documented teardown point; dropping the renderer is what actually
-            // releases the layer, the drawable pool and the textures.
-            renderer.destroy();
-        }
-        // The callbacks capture GPUI entities: keeping them would keep a closed
-        // window's content alive for as long as the retired native window lives.
-        self.request_frame_callback = None;
-        self.event_callback = None;
-        self.activate_callback = None;
-        self.visibility_callback = None;
-        self.resize_callback = None;
-        self.moved_callback = None;
-        self.should_close_callback = None;
-        self.close_callback = None;
-        self.appearance_changed_callback = None;
-        self.move_tab_to_new_window_callback = None;
-        self.merge_all_windows_callback = None;
-        self.select_next_tab_callback = None;
-        self.select_previous_tab_callback = None;
-        self.toggle_tab_bar_callback = None;
-        self.input_handler = None;
-        // Per-gesture bookkeeping that only means anything while the window can be
-        // interacted with; some of it retains native objects.
-        self.last_key_equivalent = None;
-        self.last_left_mouse_down_event = None;
-        self.previous_modifiers_changed_event = None;
-        self.keystroke_for_do_command = None;
-        self.do_command_handled = None;
-    }
-
-    /// Sets whether the renderer presents with a transaction, if the window still has
-    /// a renderer: a retired window's was released with its GPU resources.
-    fn set_presents_with_transaction(&mut self, presents: bool) {
-        if let Some(renderer) = self.renderer.as_mut() {
-            renderer.set_presents_with_transaction(presents);
-        }
-    }
-
     fn move_traffic_light(&mut self) {
         if let Some(traffic_light_position) = self.traffic_light_position {
             if self.is_fullscreen() && !self.is_exiting_fullscreen {
@@ -1167,14 +1098,13 @@ impl MacWindow {
                 cursor_style: CursorStyle::Arrow,
                 cursor_visible,
                 frame_source: None,
-                renderer: Some(renderer::new_renderer(
+                renderer: renderer::new_renderer(
                     renderer_context,
                     native_window as *mut _,
                     native_view as *mut _,
                     bounds.size.map(|pixels| pixels.as_f32()),
                     false,
-                )),
-                retired: false,
+                ),
                 request_frame_callback: None,
                 event_callback: None,
                 activate_callback: None,
@@ -1445,43 +1375,34 @@ impl MacWindow {
 impl Drop for MacWindow {
     fn drop(&mut self) {
         let mut this = self.0.lock();
+        // `accesskit_macos::SubclassingAdapter::for_window` strong-retains the
+        // window's content view, and that content view keeps the `GPUIView` it
+        // hosts alive. Together with the `Arc<Mutex<MacWindowState>>` parked in
+        // both views' `windowState` ivar, that forms
+        // `MacWindowState -> adapter -> content view -> GPUIView -> MacWindowState`,
+        // a cycle the delegate/`frame_source` teardown below cannot break. Drop
+        // the adapter here so the native view, its `CAMetalLayer` and the
+        // renderer's command queue are actually released with the window.
+        drop(this.accesskit_adapter.take());
+        this.renderer.destroy();
         let window = this.native_window;
-        let view = this.native_view.as_ptr();
         let sheet_parent = this.sheet_parent.take();
-        // Unsubscribing from the shared frame source releases this window's dispatch
-        // source; the display link itself is immortal (see `display_link`).
         this.frame_source.take();
+        unsafe {
+            this.native_window.setDelegate_(nil);
+        }
         this.input_handler.take();
         // A delivery task queued by `report_visibility` may still run after the
         // GPUI window is gone; without a callback it has nothing to notify.
         this.visibility_callback.take();
-        unsafe {
-            this.native_window.setDelegate_(nil);
-        }
-        // `close()` does not release the window (`setReleasedWhenClosed: NO` is set at
-        // creation) and it must stay that way: releasing it — even after a grace
-        // period — lets AppKit's Touch Bar finder invalidate an observation of a view
-        // that is already gone, which throws an Objective-C exception that nothing can
-        // catch and aborts the process. The native window is retired instead; see
-        // [`window_teardown`].
-        //
-        // This task runs on a later main-thread turn (the dispatcher only enqueues), so
-        // taking the state lock here again is not re-entrant with the lock held above.
-        let state = self.0.clone();
         this.foreground_executor
             .spawn(async move {
                 unsafe {
                     if let Some(parent) = sheet_parent {
                         let _: () = msg_send![parent, endSheet: window];
                     }
-                    // `close_window` delivers the close callback and pops the simple
-                    // fullscreen presentation options, so it has to run while the state
-                    // is still complete.
                     window.close();
-                    // Only now release what must not outlive the GPUI window, and keep
-                    // the native objects themselves alive.
-                    state.lock().retire();
-                    window_teardown::retire(window, view);
+                    window.autorelease();
                 }
             })
             .detach();
@@ -1938,9 +1859,7 @@ impl PlatformWindow for MacWindow {
         this.background_appearance = background_appearance;
 
         let opaque = background_appearance == WindowBackgroundAppearance::Opaque;
-        if let Some(renderer) = this.renderer.as_mut() {
-            renderer.update_transparency(!opaque);
-        }
+        this.renderer.update_transparency(!opaque);
 
         unsafe {
             this.native_window.setOpaque_(opaque as BOOL);
@@ -2193,26 +2112,11 @@ impl PlatformWindow for MacWindow {
 
     fn draw(&self, scene: &gpui::Scene) {
         let mut this = self.0.lock();
-        // A retired window has no renderer left: its GPUI `Window` was dropped with
-        // the close callback, so there is nothing left to draw (see
-        // [`MacWindowState::retire`]).
-        let Some(renderer) = this.renderer.as_mut() else {
-            return;
-        };
-        renderer.draw(scene);
+        this.renderer.draw(scene);
     }
 
     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas> {
-        // GPUI asks for the atlas while building the `Window` for this platform window
-        // (`gpui/src/window.rs`), so a retired window — whose `Window` is gone — can
-        // never be asked again; the atlas itself goes with the renderer.
-        self.0
-            .lock()
-            .renderer
-            .as_ref()
-            .expect("sprite atlas requested for a retired window")
-            .sprite_atlas()
-            .clone()
+        self.0.lock().renderer.sprite_atlas().clone()
     }
 
     fn gpu_specs(&self) -> Option<gpui::GpuSpecs> {
@@ -2446,10 +2350,7 @@ impl PlatformWindow for MacWindow {
     #[cfg(any(test, feature = "test-support"))]
     fn render_to_image(&self, scene: &gpui::Scene) -> Result<RgbaImage> {
         let mut this = self.0.lock();
-        this.renderer
-            .as_mut()
-            .expect("render_to_image called for a retired window")
-            .render_to_image(scene)
+        this.renderer.render_to_image(scene)
     }
 
     fn a11y_init(&self, callbacks: gpui::A11yCallbacks) {
@@ -2614,11 +2515,6 @@ extern "C" fn reset_cursor_rects(this: &Object, _: Sel) {
         let _: () = msg_send![super(this, class!(NSView)), resetCursorRects];
 
         let window_state = get_window_state(this);
-        // A retired window is off screen, so invalidating its cursor rects (which
-        // AppKit may still do during a display cycle) has nothing to register.
-        if window_state.lock().retired {
-            return;
-        }
         let cursor_style = window_state.lock().cursor_style;
 
         let cursor: id = match cursor_style {
@@ -3191,20 +3087,16 @@ fn update_window_scale_factor(window_state: &Arc<Mutex<MacWindowState>>) {
     let scale_factor = lock.scale_factor();
     let size = lock.content_size();
     let drawable_size = size.to_device_pixels(scale_factor);
-    // A retired window has no renderer, no layer and no drawable to resize; its resize
-    // callback was dropped with it (see [`MacWindowState::retire`]).
-    if let Some(renderer) = lock.renderer.as_mut() {
-        if let Some(layer) = renderer.layer() {
-            unsafe {
-                let _: () = msg_send![
-                    layer,
-                    setContentsScale: scale_factor as f64
-                ];
-            }
+    if let Some(layer) = lock.renderer.layer() {
+        unsafe {
+            let _: () = msg_send![
+                layer,
+                setContentsScale: scale_factor as f64
+            ];
         }
-
-        renderer.update_drawable_size(drawable_size);
     }
+
+    lock.renderer.update_drawable_size(drawable_size);
 
     if let Some(mut callback) = lock.resize_callback.take() {
         let content_size = lock.content_size();
@@ -3274,14 +3166,14 @@ extern "C" fn window_did_change_key_status(this: &Object, selector: Sel, _: id) 
 
         if lock.activated_least_once {
             if let Some(mut callback) = lock.request_frame_callback.take() {
-                lock.set_presents_with_transaction(true);
+                lock.renderer.set_presents_with_transaction(true);
                 lock.stop_display_link();
                 drop(lock);
                 callback(Default::default());
 
                 let mut lock = window_state.lock();
                 lock.request_frame_callback = Some(callback);
-                lock.set_presents_with_transaction(false);
+                lock.renderer.set_presents_with_transaction(false);
                 lock.start_display_link();
             }
         } else {
@@ -3345,13 +3237,7 @@ extern "C" fn close_window(this: &Object, _: Sel) {
 extern "C" fn make_backing_layer(this: &Object, _: Sel) -> id {
     let window_state = unsafe { get_window_state(this) };
     let window_state = window_state.as_ref().lock();
-    match window_state.renderer.as_ref() {
-        Some(renderer) => renderer.layer_ptr() as id,
-        // A retired window's layer was released with its renderer and the view is no
-        // longer layer-backed (see `window_teardown`), so AppKit should not ask; if it
-        // does, hand it a plain layer rather than a metal layer that is gone.
-        None => unsafe { msg_send![super(this, class!(NSView)), makeBackingLayer] },
-    }
+    window_state.renderer.layer_ptr() as id
 }
 
 extern "C" fn view_did_change_backing_properties(this: &Object, _: Sel) {
@@ -3386,10 +3272,7 @@ extern "C" fn set_frame_size(this: &Object, _: Sel, size: NSSize) {
 
     let scale_factor = lock.scale_factor();
     let drawable_size = new_size.to_device_pixels(scale_factor);
-    // Nothing to resize once the window was retired and its renderer released.
-    if let Some(renderer) = lock.renderer.as_mut() {
-        renderer.update_drawable_size(drawable_size);
-    }
+    lock.renderer.update_drawable_size(drawable_size);
 
     if let Some(mut callback) = lock.resize_callback.take() {
         let content_size = lock.content_size();
@@ -3403,20 +3286,15 @@ extern "C" fn set_frame_size(this: &Object, _: Sel, size: NSSize) {
 extern "C" fn display_layer(this: &Object, _: Sel, _: id) {
     let window_state = unsafe { get_window_state(this) };
     let mut lock = window_state.lock();
-    // Core Animation asks to display a layer that a retired window no longer has, and
-    // there is no frame callback left to schedule (see `window_teardown`).
-    if lock.retired {
-        return;
-    }
     if let Some(mut callback) = lock.request_frame_callback.take() {
-        lock.set_presents_with_transaction(true);
+        lock.renderer.set_presents_with_transaction(true);
         lock.stop_display_link();
         drop(lock);
         callback(Default::default());
 
         let mut lock = window_state.lock();
         lock.request_frame_callback = Some(callback);
-        lock.set_presents_with_transaction(false);
+        lock.renderer.set_presents_with_transaction(false);
         lock.start_display_link();
     }
 }
@@ -3602,11 +3480,6 @@ extern "C" fn do_command_by_selector(this: &Object, _: Sel, _: Sel) {
 extern "C" fn view_did_change_effective_appearance(this: &Object, _: Sel) {
     unsafe {
         let state = get_window_state(this);
-        // An appearance change is not tied to a window being on screen, but a retired
-        // window has no callback left to notify and nothing worth relayouting.
-        if state.lock().retired {
-            return;
-        }
         let appearance_changed_callback = {
             let mut lock = state.as_ref().lock();
             lock.appearance_changed_callback.take()

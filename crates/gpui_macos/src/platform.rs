@@ -208,10 +208,6 @@ pub(crate) struct MacPlatformState {
 impl MacPlatform {
     pub fn new(headless: bool) -> Self {
         let marker = MainThreadMarker::new().expect("Mac platform not created on main thread");
-        // AppKit aborts the process for an exception its own Touch Bar finder raises while
-        // retracting its observations; see `touch_bar_guard`. Installed here, before the
-        // first window exists and so before the display cycle that could raise it.
-        crate::touch_bar_guard::install();
         let dispatcher = Arc::new(MacDispatcher::new());
 
         #[cfg(feature = "font-kit")]
