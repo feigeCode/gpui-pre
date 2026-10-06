@@ -1,0 +1,34 @@
+[package]
+name = "gpui-pre-bench-metrics"
+version = "0.3.124"
+edition = { workspace = true }
+publish = true
+license = "Apache-2.0"
+description = "Zed's `bench_metrics` crate (gpui-pre snapshot of zed@d8bc772)"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.gpui-pre]
+zed-crate = "bench_metrics"
+zed-version = "0.1.0"
+zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
+
+[lib]
+path = "src/bench_metrics.rs"
+doctest = false
+name = "bench_metrics"
+
+[features]
+test-support = []
+
+[dependencies]
+anyhow = { workspace = true }
+criterion = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+perf-event = { workspace = true }
+
+[lints]
+workspace = true

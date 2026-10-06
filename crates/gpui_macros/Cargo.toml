@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-macros"
-version = "0.3.123"
+version = "0.3.124"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Macros used by gpui (gpui-pre snapshot of zed@b032bf6)"
+description = "Macros used by gpui (gpui-pre snapshot of zed@d8bc772)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_macros"
 zed-version = "0.1.0"
-zed-rev = "b032bf62e97361374175ae5711a5aef221dd8206"
+zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
 
 [lib]
 path = "src/gpui_macros.rs"
@@ -26,7 +26,7 @@ inspector = []
 heck = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-syn = { workspace = true }
+syn = { workspace = true, default-features = true, features = ["full", "extra-traits", "visit-mut"] }
 proc-macro-crate = "3"
 
 [lints]

@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-reqwest-client"
-version = "0.3.123"
+version = "0.3.124"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `reqwest_client` crate (gpui-pre snapshot of zed@b032bf6)"
+description = "Zed's `reqwest_client` crate (gpui-pre snapshot of zed@d8bc772)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "reqwest_client"
 zed-version = "0.1.0"
-zed-rev = "b032bf62e97361374175ae5711a5aef221dd8206"
+zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
 
 [lib]
 path = "src/reqwest_client.rs"
@@ -26,7 +26,7 @@ bytes = { workspace = true }
 futures = { workspace = true }
 http_client = { workspace = true }
 log = { workspace = true }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 regex = { workspace = true }
 reqwest = { workspace = true }
 gpui_util = { workspace = true }

@@ -1,10 +1,10 @@
 [package]
 name = "gpui-pre-windows"
-version = "0.3.123"
+version = "0.3.124"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `gpui_windows` crate (gpui-pre snapshot of zed@b032bf6)"
+description = "Zed's `gpui_windows` crate (gpui-pre snapshot of zed@d8bc772)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.cargo-shear]
@@ -13,7 +13,7 @@ ignored = ["scap"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui_windows"
 zed-version = "0.1.0"
-zed-rev = "b032bf62e97361374175ae5711a5aef221dd8206"
+zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
 
 [lib]
 path = "src/gpui_windows.rs"
@@ -43,9 +43,37 @@ log = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 raw-window-handle = { workspace = true }
+scheduler = { workspace = true }
 smallvec = { workspace = true }
-uuid = { workspace = true }
-windows = { workspace = true }
+uuid = { workspace = true, features = ["v5"] }
+windows = { workspace = true, features = [
+    "Data_Xml_Dom",
+    "UI_Notifications",
+    "UI_ViewManagement",
+    "Wdk_System_SystemServices",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Direct3D_Fxc",
+    "Win32_Graphics_DirectComposition",
+    "Win32_Graphics_DirectManipulation",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Hlsl",
+    "Win32_Media",
+    "Win32_Security_Credentials",
+    "Win32_Storage_Packaging_Appx",
+    "Win32_System_DataExchange",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Memory",
+    "Win32_System_Performance",
+    "Win32_System_StationsAndDesktops",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_Pointer",
+] }
 windows-core = { workspace = true }
 windows-numerics = "0.3"
 windows-registry = { workspace = true }

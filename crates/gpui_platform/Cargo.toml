@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-platform"
-version = "0.3.123"
+version = "0.3.124"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `gpui_platform` crate (gpui-pre snapshot of zed@b032bf6)"
+description = "Zed's `gpui_platform` crate (gpui-pre snapshot of zed@d8bc772)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "gpui_platform"
 zed-version = "0.1.0"
-zed-rev = "b032bf62e97361374175ae5711a5aef221dd8206"
+zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
 
 [lib]
 path = "src/gpui_platform.rs"
@@ -19,10 +19,15 @@ name = "gpui_platform"
 
 [features]
 default = []
-bench-support = ["gpui/bench-support", "gpui_macos/bench-support"]
+bench-support = ["gpui/bench-support", "gpui_macos/bench-support", "gpui_wgpu/bench-support"]
 font-kit = ["gpui_macos/font-kit"]
 inspector = ["gpui/inspector"]
-test-support = ["gpui/test-support", "gpui_macos/test-support", "gpui_windows/test-support"]
+test-support = [
+    "gpui/test-support",
+    "gpui_macos/test-support",
+    "gpui_windows/test-support",
+    "gpui_wgpu/test-support",
+]
 screen-capture = [
     "gpui/screen-capture",
     "gpui_macos/screen-capture",
@@ -34,6 +39,7 @@ wayland = ["gpui_linux/wayland"]
 x11 = ["gpui_linux/x11"]
 
 [dependencies]
+anyhow = { workspace = true }
 gpui = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -46,6 +52,9 @@ gpui = { workspace = true, features = ["windows-manifest"] }
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 gpui_linux = { workspace = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui_wgpu = { workspace = true, optional = true }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 gpui_web = { workspace = true }
 console_error_panic_hook = { workspace = true }
@@ -55,5 +64,10 @@ workspace = true
 
 [[bench]]
 name = "inspector_render"
+harness = false
+required-features = ["bench-support"]
+
+[[bench]]
+name = "randomized_element_tree"
 harness = false
 required-features = ["bench-support"]
