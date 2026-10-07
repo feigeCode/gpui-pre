@@ -1,16 +1,16 @@
 [package]
 name = "gpui-pre-scheduler"
-version = "0.3.125"
+version = "0.3.126"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `scheduler` crate (gpui-pre snapshot of zed@d748a75)"
+description = "Zed's `scheduler` crate (gpui-pre snapshot of zed@ff7265d)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.gpui-pre]
 zed-crate = "scheduler"
 zed-version = "0.1.0"
-zed-rev = "d748a758d82478ae8054827f466fff0fffb47056"
+zed-rev = "ff7265de602491e14fe63495bc271744f25ee7c9"
 
 [lib]
 path = "src/scheduler.rs"
