@@ -1,10 +1,10 @@
 [package]
 name = "gpui-pre-linux"
-version = "0.3.124"
+version = "0.3.125"
 edition = { workspace = true }
 publish = true
 license = "Apache-2.0"
-description = "Zed's `gpui_linux` crate (gpui-pre snapshot of zed@d8bc772)"
+description = "Zed's `gpui_linux` crate (gpui-pre snapshot of zed@d748a75)"
 repository = "https://github.com/zed-industries/zed"
 
 [package.metadata.cargo-shear]
@@ -13,7 +13,7 @@ ignored = ["scap"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui_linux"
 zed-version = "0.1.0"
-zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
+zed-rev = "d748a758d82478ae8054827f466fff0fffb47056"
 
 [lib]
 path = "src/gpui_linux.rs"
@@ -99,6 +99,7 @@ x11rb = { version = "0.13.1", features = [
     "resource_manager",
     "sync",
     "dri3",
+    "shape",
 ], optional = true }
 xim = { git = "https://github.com/zed-industries/xim-rs.git", rev = "16f35a2c881b815a2b6cdfd6687988e84f8447d8", features = ["x11rb-xcb", "x11rb-client"], package = "zed-xim", version = "0.4.0-zed", optional = true }
 

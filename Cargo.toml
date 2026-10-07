@@ -31,30 +31,30 @@ publish = true
 edition = "2024"
 
 [workspace.dependencies]
-bench_metrics = { path = "crates/bench_metrics", package = "gpui-pre-bench-metrics", version = "=0.3.124" }
-collections = { path = "crates/collections", package = "gpui-pre-collections", version = "=0.3.124" }
-derive_refineable = { path = "crates/refineable/derive_refineable", package = "gpui-pre-derive-refineable", version = "=0.3.124" }
-gpui = { path = "crates/gpui", package = "gpui-pre", version = "=0.3.124", default-features = false }
-gpui_apple = { path = "crates/gpui_apple", package = "gpui-pre-apple", version = "=0.3.124" }
-gpui_linux = { path = "crates/gpui_linux", package = "gpui-pre-linux", version = "=0.3.124", default-features = false }
-gpui_macos = { path = "crates/gpui_macos", package = "gpui-pre-macos", version = "=0.3.124", default-features = false }
-gpui_macros = { path = "crates/gpui_macros", package = "gpui-pre-macros", version = "=0.3.124" }
-gpui_platform = { path = "crates/gpui_platform", package = "gpui-pre-platform", version = "=0.3.124", default-features = false }
-gpui_shared_string = { path = "crates/gpui_shared_string", package = "gpui-pre-shared-string", version = "=0.3.124" }
-gpui_util = { path = "crates/gpui_util", package = "gpui-pre-util", version = "=0.3.124" }
-gpui_web = { path = "crates/gpui_web", package = "gpui-pre-web", version = "=0.3.124" }
-gpui_wgpu = { path = "crates/gpui_wgpu", package = "gpui-pre-wgpu", version = "=0.3.124" }
-gpui_windows = { path = "crates/gpui_windows", package = "gpui-pre-windows", version = "=0.3.124", default-features = false }
-http_client = { path = "crates/http_client", package = "gpui-pre-http-client", version = "=0.3.124" }
-http_client_tls = { path = "crates/http_client_tls", package = "gpui-pre-http-client-tls", version = "=0.3.124" }
-refineable = { path = "crates/refineable", package = "gpui-pre-refineable", version = "=0.3.124" }
-reqwest_client = { path = "crates/reqwest_client", package = "gpui-pre-reqwest-client", version = "=0.3.124" }
+bench_metrics = { path = "crates/bench_metrics", package = "gpui-pre-bench-metrics", version = "=0.3.125" }
+collections = { path = "crates/collections", package = "gpui-pre-collections", version = "=0.3.125" }
+derive_refineable = { path = "crates/refineable/derive_refineable", package = "gpui-pre-derive-refineable", version = "=0.3.125" }
+gpui = { path = "crates/gpui", package = "gpui-pre", version = "=0.3.125", default-features = false }
+gpui_apple = { path = "crates/gpui_apple", package = "gpui-pre-apple", version = "=0.3.125" }
+gpui_linux = { path = "crates/gpui_linux", package = "gpui-pre-linux", version = "=0.3.125", default-features = false }
+gpui_macos = { path = "crates/gpui_macos", package = "gpui-pre-macos", version = "=0.3.125", default-features = false }
+gpui_macros = { path = "crates/gpui_macros", package = "gpui-pre-macros", version = "=0.3.125" }
+gpui_platform = { path = "crates/gpui_platform", package = "gpui-pre-platform", version = "=0.3.125", default-features = false }
+gpui_shared_string = { path = "crates/gpui_shared_string", package = "gpui-pre-shared-string", version = "=0.3.125" }
+gpui_util = { path = "crates/gpui_util", package = "gpui-pre-util", version = "=0.3.125" }
+gpui_web = { path = "crates/gpui_web", package = "gpui-pre-web", version = "=0.3.125" }
+gpui_wgpu = { path = "crates/gpui_wgpu", package = "gpui-pre-wgpu", version = "=0.3.125" }
+gpui_windows = { path = "crates/gpui_windows", package = "gpui-pre-windows", version = "=0.3.125", default-features = false }
+http_client = { path = "crates/http_client", package = "gpui-pre-http-client", version = "=0.3.125" }
+http_client_tls = { path = "crates/http_client_tls", package = "gpui-pre-http-client-tls", version = "=0.3.125" }
+refineable = { path = "crates/refineable", package = "gpui-pre-refineable", version = "=0.3.125" }
+reqwest_client = { path = "crates/reqwest_client", package = "gpui-pre-reqwest-client", version = "=0.3.125" }
 rodio = { git = "https://github.com/RustAudio/rodio", rev = "e50e726ddd0292f6ef9de0dda6b90af4ed1fb66a", default-features = false, features = ["wav", "playback", "wav_output", "recording"] }
-scheduler = { path = "crates/scheduler", package = "gpui-pre-scheduler", version = "=0.3.124" }
-sum_tree = { path = "crates/sum_tree", package = "gpui-pre-sum-tree", version = "=0.3.124" }
-zlog = { path = "crates/zlog", package = "gpui-pre-zlog", version = "=0.3.124" }
-ztracing = { path = "crates/ztracing", package = "gpui-pre-ztracing", version = "=0.3.124" }
-ztracing_macro = { path = "crates/ztracing_macro", package = "gpui-pre-ztracing-macro", version = "=0.3.124" }
+scheduler = { path = "crates/scheduler", package = "gpui-pre-scheduler", version = "=0.3.125" }
+sum_tree = { path = "crates/sum_tree", package = "gpui-pre-sum-tree", version = "=0.3.125" }
+zlog = { path = "crates/zlog", package = "gpui-pre-zlog", version = "=0.3.125" }
+ztracing = { path = "crates/ztracing", package = "gpui-pre-ztracing", version = "=0.3.125" }
+ztracing_macro = { path = "crates/ztracing_macro", package = "gpui-pre-ztracing-macro", version = "=0.3.125" }
 accesskit = { version = "0.24.0", features = ["enumn"] }
 accesskit_macos = "0.26.0"
 accesskit_unix = "0.22"

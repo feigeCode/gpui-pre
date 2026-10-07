@@ -1,9 +1,9 @@
 [package]
 name = "gpui-pre"
-version = "0.3.124"
+version = "0.3.125"
 edition = { workspace = true }
 authors = ["Nathan Sobo <nathan@zed.dev>"]
-description = "Zed's GPU-accelerated UI framework (gpui-pre snapshot of zed@d8bc772)"
+description = "Zed's GPU-accelerated UI framework (gpui-pre snapshot of zed@d748a75)"
 repository = "https://github.com/zed-industries/zed"
 publish = true
 license = "Apache-2.0"
@@ -19,7 +19,7 @@ ignored-paths = ["src/_ownership_and_data_flow.rs"]
 [package.metadata.gpui-pre]
 zed-crate = "gpui"
 zed-version = "0.2.2"
-zed-rev = "d8bc7723f2bdf220cc0cc048160f425afc74de49"
+zed-rev = "d748a758d82478ae8054827f466fff0fffb47056"
 
 [lib]
 path = "src/gpui.rs"
@@ -149,9 +149,12 @@ libc = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_DirectComposition",
     "Win32_System_Power",
     "Win32_System_RemoteDesktop",
     "Win32_System_WindowsProgramming",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 [lints]
@@ -160,6 +163,10 @@ workspace = true
 [[example]]
 name = "hello_world"
 path = "examples/hello_world.rs"
+
+[[example]]
+name = "native_webview"
+path = "examples/native_webview.rs"
 
 [[example]]
 name = "move_entity_between_windows"
